@@ -9,39 +9,36 @@ jobs:
   publish-preview:
     runs-on: ubuntu-latest
 
-    # working-directory SİLİNDİ, ana dizinde çalışacak.
-
     steps:
-      - name: 🏗 Setup Repo
+      - name: 🏗 Depoyu Çek (Checkout)
         uses: actions/checkout@v4
 
-      - name: 🔍 Dosyaları Kontrol Et (Debug)
-        run: ls -la # Bu komut hangi dosyaların nerede olduğunu loglarda gösterecek
+      - name: 🔍 Dosyaları Listele (Hata Ayıklama)
+        run: ls -la # Bu, package.json dosyasının nerede olduğunu loglarda gösterir.
 
-      - name: 🏗 Setup Node
+      - name: 🏗 Node.js Kurulumu
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: 📦 Install EAS CLI
+      - name: 📦 EAS CLI Yükle
         run: npm install -g eas-cli
 
-      - name: 📦 Install Dependencies
-        # Eğer package.json ana dizindeyse bu çalışır
+      - name: 📦 Bağımlılıkları Yükle
         run: npm install
 
-      - name: ⚙️ Setup EAS Config
-        # eas.json dosyasını elle oluşturuyoruz
+      # Eğer eas.json yoksa hata vermemesi için biz oluşturuyoruz
+      - name: ⚙️ EAS Ayarlarını Oluştur
         run: |
           echo '{ "build": { "preview": { "distribution": "internal" } }, "submit": { "production": {} }, "update": { "preview": { "channel": "preview" } } }' > eas.json
 
-      - name: 🔗 Link Project
+      # Proje ID'sini zorla tanımlıyoruz (Senin verdiğin ID)
+      - name: 🔗 Projeyi Eşleştir (Link)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        # Senin ID'ni buraya tekrar ekledim
         run: eas init --id 7b7866e2-688e-4e87-af97-88213b2670d4 --non-interactive
 
-      - name: 🚀 Publish to Expo
+      - name: 🚀 Expo'ya Gönder (Update)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "Auto update" --non-interactive
+        run: eas update --branch preview --message "GitHub Action Update" --non-interactive
