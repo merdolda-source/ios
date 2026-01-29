@@ -1,4 +1,4 @@
-name: Expo Preview SDK 54 Stable Fix
+name: Expo Preview SDK 54 Final Fix
 
 on:
   push:
@@ -13,17 +13,17 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK
+      # 1. TEMİZLİK: Eski sürümlerin çakışmasını önlemek için her şeyi siliyoruz
       - name: 🧹 Ön Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets
 
-      # 2. NODE KURULUMU
+      # 2. NODE KURULUMU: Modern kütüphaneler için Node 20+ gereklidir
       - name: 🏗 Node.js Kurulumu
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 3. PACKAGE.JSON: expo-asset sürümü mevcut olan ~12.0.0 ile değiştirildi
+      # 3. PACKAGE.JSON: SDK 54 için mevcut ve doğru sürümler ayarlandı
       - name: 📄 package.json Oluştur (SDK 54)
         run: |
           echo '{
@@ -39,7 +39,7 @@ jobs:
               "expo": "~54.0.0",
               "react": "19.0.0",
               "react-native": "0.78.0",
-              "expo-av": "~17.0.0",
+              "expo-av": "~16.0.0",
               "expo-keep-awake": "~15.0.0",
               "expo-status-bar": "~2.1.0",
               "expo-asset": "~12.0.0",
@@ -63,7 +63,7 @@ jobs:
             "private": true
           }' > package.json
 
-      # 4. BABEL CONFIG
+      # 4. BABEL CONFIG: Reanimated plugin'i navigasyon hatalarını önler
       - name: 📄 babel.config.js Oluştur
         run: |
           echo "module.exports = function(api) {
@@ -74,7 +74,7 @@ jobs:
             };
           };" > babel.config.js
 
-      # 5. APP.JSON: SDK 54 ve Owner bilgileri dahil
+      # 5. APP.JSON: Owner ve ProjectId zorunlu alanlar eklendi
       - name: 📄 app.json Oluştur
         run: |
           echo '{
@@ -99,13 +99,13 @@ jobs:
             }
           }' > app.json
 
-      # 6. ASSETS
+      # 6. ASSETS: Eksik ikon/splash dosyalarından dolayı build çökmesini engeller
       - name: 🖼 Sahte Varlıklar (Assets) Oluştur
         run: |
           mkdir -p assets
           touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
 
-      # 7. KURULUM VE GÖNDERİM
+      # 7. KURULUM VE GÖNDERİM: --legacy-peer-deps çakışmaları çözer
       - name: 📦 Paket Kurulumu
         run: |
           npm install -g eas-cli
@@ -114,4 +114,4 @@ jobs:
       - name: 🚀 Expo EAS Update (SDK 54)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "Fix ETARGET expo-asset" --non-interactive
+        run: eas update --branch preview --message "SDK 54 Final Stable Fix" --non-interactive
