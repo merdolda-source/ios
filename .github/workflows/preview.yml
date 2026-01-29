@@ -11,15 +11,19 @@ jobs:
     steps:
       - name: 🏗 Setup Repo
         uses: actions/checkout@v4
+
       - name: 🏗 Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: 'npm'
+          # cache: 'npm' satırı hataya sebep olduğu için kaldırıldı.
+
       - name: 📦 Install EAS CLI
         run: npm install -g eas-cli
+
       - name: 📦 Install Dependencies
         run: npm install
+
       - name: 🚀 Publish to Expo
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
