@@ -23,7 +23,8 @@ jobs:
 
       - name: 📄 package.json Oluştur (SDK 54)
         run: |
-          echo '{
+          cat > package.json <<'JSON'
+          {
             "name": "eminxtream",
             "version": "1.0.0",
             "main": "node_modules/expo/AppEntry.js",
@@ -55,35 +56,57 @@ jobs:
               "babel-preset-expo": "~13.0.0"
             },
             "private": true
-          }' > package.json
+          }
+          JSON
 
-      - name: 📄 app.json (SDK 54 & iOS HTTP Fix)
+      - name: 📄 app.json (SDK 54 & iOS/Android HTTP Fix)
         run: |
-          echo '{
+          cat > app.json <<'JSON'
+          {
             "expo": {
               "name": "eminxtream",
               "slug": "eminxtream",
               "owner": "eminxtream",
               "version": "1.0.0",
+              "orientation": "portrait",
+              "assetBundlePatterns": ["**/*"],
               "ios": {
                 "bundleIdentifier": "com.eminxtream.app",
                 "infoPlist": {
-                  "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+                  "NSAppTransportSecurity": {
+                    "NSAllowsArbitraryLoads": true,
+                    "NSAllowsArbitraryLoadsForMedia": true,
+                    "NSAllowsArbitraryLoadsInWebContent": true
+                  }
                 }
+              },
+              "android": {
+                "package": "com.eminxtream.app",
+                "usesCleartextTraffic": true
               },
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
               "runtimeVersion": { "policy": "appVersion" },
               "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
             }
-          }' > app.json
+          }
+          JSON
 
       - name: 🖼 Assets Oluştur
-        run: mkdir -p assets && touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
+        run: |
+          mkdir -p assets
+          # Expo placeholder dosyaları
+          :> assets/icon.png
+          :> assets/splash.png
+          :> assets/adaptive-icon.png
+          :> assets/favicon.png
 
       - name: 📦 Paket Kurulumu
-        run: npm install -g eas-cli && npm install --legacy-peer-deps
+        run: |
+          npm install -g eas-cli
+          npm install --legacy-peer-deps
 
       - name: 🚀 Gönder
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "SDK 54 & MultiFormat Fix" --non-interactive
+        run: |
+          eas update --branch preview --message "SDK 54 & iOS Player Fallback + HTTP Fix" --non-interactive
