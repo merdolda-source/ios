@@ -8,6 +8,12 @@ on:
 jobs:
   publish-preview:
     runs-on: ubuntu-latest
+    
+    # Tüm işlemler eminxtream klasöründe yapılacak
+    defaults:
+      run:
+        working-directory: ./eminxtream
+
     steps:
       - name: 🏗 Setup Repo
         uses: actions/checkout@v4
@@ -16,13 +22,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          # cache: 'npm' satırı hataya sebep olduğu için kaldırıldı.
 
       - name: 📦 Install EAS CLI
         run: npm install -g eas-cli
 
       - name: 📦 Install Dependencies
         run: npm install
+
+      # 👇 YENİ EKLENEN ADIM: EAS Konfigürasyonu Oluşturuluyor
+      - name: ⚙️ Setup EAS Config
+        run: |
+          echo '{ "build": { "preview": { "distribution": "internal" } }, "update": { "preview": { "channel": "preview" } } }' > eas.json
+
+      # 👇 YENİ EKLENEN ADIM: Proje ID'sini Zorla Tanıtıyoruz
+      - name: 🔗 Link Project
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas init --id 7b7866e2-688e-4e87-af97-88213b2670d4 --non-interactive
 
       - name: 🚀 Publish to Expo
         env:
