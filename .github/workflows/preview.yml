@@ -13,16 +13,17 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
+      # ADIM 1: Temizlik
       - name: 🧹 Temizlik ve Hazırlık
-        run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json
+        run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets
 
       - name: 🏗 Node.js Kurulumu
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      # ADIM 2: package.json (SDK 52 - EKSİK KÜTÜPHANE EKLENDİ)
-      - name: 📄 Create package.json (SDK 52 + Icons)
+      # ADIM 2: package.json (EKSİK KÜTÜPHANELER EKLENDİ)
+      - name: 📄 Create package.json (Full Dependencies)
         run: |
           echo '{
             "name": "eminxtream",
@@ -39,6 +40,8 @@ jobs:
               "@react-navigation/bottom-tabs": "^6.5.11",
               "@react-navigation/native": "^6.1.9",
               "@react-navigation/stack": "^6.3.20",
+              "react-native-gesture-handler": "~2.16.1",
+              "react-native-reanimated": "~3.10.1",
               "expo": "~52.0.25",
               "expo-av": "~15.0.2",
               "expo-keep-awake": "~14.0.2",
@@ -63,6 +66,7 @@ jobs:
             api.cache(true);
             return {
               presets: ['babel-preset-expo'],
+              plugins: ['react-native-reanimated/plugin'],
             };
           };" > babel.config.js
 
@@ -105,14 +109,21 @@ jobs:
             "submit": { "production": {} }
           }' > eas.json
 
+      # ADIM 6: EKSİK RESİMLERİ OLUŞTUR (Bu Adım Çok Kritik)
+      # Eğer assets klasörü yoksa build patlar. Burada sahte resimler oluşturuyoruz.
+      - name: 🖼 Create Dummy Assets
+        run: |
+          mkdir -p assets
+          touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
+
       - name: 📦 EAS CLI Yükle
         run: npm install -g eas-cli
 
       - name: 📦 Bağımlılıkları Yükle
         run: npm install
 
-      # ADIM 6: Güncellemeyi Gönder
+      # ADIM 7: Güncellemeyi Gönder
       - name: 🚀 Expo'ya Gönder (Update)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "Fixed Missing Icons" --non-interactive
+        run: eas update --branch preview --message "Final Fix Dependencies" --non-interactive
