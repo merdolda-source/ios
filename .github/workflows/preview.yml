@@ -1,0 +1,26 @@
+name: Expo Preview
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  publish-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🏗 Setup Repo
+        uses: actions/checkout@v4
+      - name: 🏗 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+      - name: 📦 Install EAS CLI
+        run: npm install -g eas-cli
+      - name: 📦 Install Dependencies
+        run: npm install
+      - name: 🚀 Publish to Expo
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas update --branch preview --message "Auto update" --non-interactive
