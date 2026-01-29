@@ -1,4 +1,4 @@
-name: EminXtream SDK 54 Full Fix
+name: EminXtream SDK 54 & iOS Fix
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: 20
 
-      - name: 📄 package.json Oluştur (SDK 54)
+      - name: 📄 package.json (SDK 54)
         run: |
           echo '{
             "name": "eminxtream",
@@ -57,17 +57,7 @@ jobs:
             "private": true
           }' > package.json
 
-      - name: 📄 babel.config.js Oluştur
-        run: |
-          echo "module.exports = function(api) {
-            api.cache(true);
-            return {
-              presets: ['babel-preset-expo'],
-              plugins: ['react-native-reanimated/plugin'],
-            };
-          };" > babel.config.js
-
-      - name: 📄 app.json Oluştur (iOS HTTP Fix)
+      - name: 📄 app.json (iOS HTTP & SDK 54 Fix)
         run: |
           echo '{
             "expo": {
@@ -92,17 +82,13 @@ jobs:
             }
           }' > app.json
 
-      - name: 🖼 Assets Oluştur
-        run: |
-          mkdir -p assets
-          touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
+      - name: 🖼 Sahte Varlıklar (Assets) Oluştur
+        run: mkdir -p assets && touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
 
       - name: 📦 Paket Kurulumu
-        run: |
-          npm install -g eas-cli
-          npm install --legacy-peer-deps
+        run: npm install -g eas-cli && npm install --legacy-peer-deps
 
       - name: 🚀 Expo EAS Update
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "Full SDK 54 and iOS Fix" --non-interactive
+        run: eas update --branch preview --message "SDK 54 & iOS HTTP Fix" --non-interactive
