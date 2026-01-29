@@ -1,76 +1,147 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, TextInput, SafeAreaView, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  TouchableOpacity,
+  SafeAreaView,
+  ActivityIndicator,
+  Animated
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
   bg: '#050710',
   card: '#111320',
   primary: '#00E5FF',
+  up: '#00C853',
+  down: '#FF1744',
   text: '#FFF',
   gray: '#A0A0A0'
 };
 
 export default function App() {
-  const [rates, setRates] = useState([]);
+  const [activeTab, setActiveTab] = useState('doviz'); // 'doviz' veya 'altin'
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [baseAmount, setBaseAmount] = useState('1');
+  const [lastData, setLastData] = useState({}); // Önceki fiyatları saklamak için
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    fetchRates();
-  }, []);
+    fetchData();
+    // 30 saniyede bir otomatik güncelleme (Anlık hissi verir)
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, [activeTab]);
 
-  const fetchRates = async () => {
+  const fetchData = async () => {
     try {
-      // Herhangi bir anahtar gerektirmeyen ücretsiz API
-      const response = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/try.json');
-      const data = await response.json();
+      // Not: Gerçek projede altın ve döviz için farklı uç noktalar kullanılabilir.
+      // Bu API her ikisini de kapsayan genel bir settir.
+      const response = await fetch('https://finans.truncgil.com/today.json');
+      const json = await response.json();
       
-      // JSON içindeki TRY objesini alıp liste formatına çeviriyoruz
-      const currencyList = Object.entries(data.try).map(([code, value]) => ({
-        code: code.toUpperCase(),
-        value: (1 / value).toFixed(4) // TL bazlı göstermek için tersini alıyoruz
-      })).filter(item => ['USD', 'EUR', 'GBP', 'BTC', 'GOLD'].includes(item.code)); // Önemli olanları seç
+      const items = [];
+      for (let key in json) {
+        if (key === 'Update_Date') continue;
 
-      setRates(currencyList);
+        const currentPrice = parseFloat(json[key].Selling.replace(',', '.'));
+        const previousPrice = lastData[key] || currentPrice;
+        
+        // Değişim yönünü belirle
+        let direction = 'stable';
+        if (currentPrice > previousPrice) direction = 'up';
+        else if (currentPrice < previousPrice) direction = 'down';
+
+        const isGold = key.includes('Altın') || key.includes('Gram') || key.includes('Çeyrek');
+        
+        if (activeTab === 'altin' && isGold) {
+          items.push({ name: key, price: json[key].Selling, change: json[key].Change, direction });
+        } else if (activeTab === 'doviz' && !isGold) {
+          // Sadece popüler dövizleri alalım
+          if (['USD', 'EUR', 'GBP', 'CHF', 'CAD'].includes(key)) {
+            items.push({ name: key, price: json[key].Selling, change: json[key].Change, direction });
+          }
+        }
+      }
+
+      // Mevcut fiyatları bir sonraki karşılaştırma için kaydet
+      const newLastData = {};
+      items.forEach(item => { newLastData[item.name] = parseFloat(item.price.replace(',', '.')); });
+      setLastData(newLastData);
+      
+      setData(items);
     } catch (error) {
-      console.error(error);
+      console.error("Veri çekme hatası:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  const renderItem = ({ item }) => {
+    const isUp = item.direction === 'up';
+    const isDown = item.direction === 'down';
+    const color = isUp ? COLORS.up : isDown ? COLORS.down : COLORS.text;
+    const icon = isUp ? 'caret-up' : isDown ? 'caret-down' : 'remove-outline';
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.leftSide}>
+          <View style={[styles.iconBadge, { backgroundColor: color + '20' }]}>
+            <Ionicons name={activeTab === 'doviz' ? 'logo-usd' : 'medal-outline'} size={24} color={color} />
+          </View>
+          <View>
+            <Text style={styles.symbolText}>{item.name}</Text>
+            <Text style={styles.updateText}>Anlık Güncel</Text>
+          </View>
+        </View>
+
+        <View style={styles.rightSide}>
+          <Text style={[styles.priceText, { color: color }]}>{item.price}</Text>
+          <View style={styles.changeRow}>
+            <Ionicons name={icon} size={16} color={color} />
+            <Text style={[styles.changeText, { color: color }]}>%{item.change || '0.00'}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Döviz Takip</Text>
-      
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Miktar (TL)</Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="numeric"
-          value={baseAmount}
-          onChangeText={setBaseAmount}
-          placeholderTextColor={COLORS.gray}
-        />
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Piyasalar</Text>
+        <TouchableOpacity onPress={() => { setLoading(true); fetchData(); }}>
+          <Ionicons name="refresh-circle" size={32} color={COLORS.primary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* TABS SECTION */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity 
+          style={[styles.tab, activeTab === 'doviz' && styles.activeTab]} 
+          onPress={() => setActiveTab('doviz')}
+        >
+          <Text style={[styles.tabText, activeTab === 'doviz' && styles.activeTabText]}>DÖVİZ</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.tab, activeTab === 'altin' && styles.activeTab]} 
+          onPress={() => setActiveTab('altin')}
+        >
+          <Text style={[styles.tabText, activeTab === 'altin' && styles.activeTabText]}>ALTIN</Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 50 }} />
       ) : (
         <FlatList
-          data={rates}
-          keyExtractor={(item) => item.code}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <View>
-                <Text style={styles.currencyCode}>{item.code}</Text>
-                <Text style={styles.grayText}>1 {item.code} = {item.value} TRY</Text>
-              </View>
-              <Text style={styles.resultText}>
-                {(parseFloat(baseAmount || 0) / parseFloat(item.value)).toFixed(2)}
-              </Text>
-            </View>
-          )}
+          data={data}
+          keyExtractor={(item) => item.name}
+          renderItem={renderItem}
+          contentContainerStyle={{ padding: 15 }}
+          showsVerticalScrollIndicator={false}
         />
       )}
     </SafeAreaView>
@@ -78,21 +149,43 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, padding: 20 },
-  title: { fontSize: 28, fontWeight: 'bold', color: COLORS.primary, textAlign: 'center', marginVertical: 20 },
-  inputContainer: { marginBottom: 20, paddingHorizontal: 10 },
-  label: { color: COLORS.gray, marginBottom: 5 },
-  input: { backgroundColor: COLORS.card, color: '#fff', padding: 15, borderRadius: 10, fontSize: 18 },
-  card: { 
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  header: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center', 
-    backgroundColor: COLORS.card, 
-    padding: 20, 
-    borderRadius: 15, 
-    marginBottom: 10 
+    paddingHorizontal: 20, 
+    paddingVertical: 15 
   },
-  currencyCode: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  grayText: { color: COLORS.gray, fontSize: 12 },
-  resultText: { color: COLORS.primary, fontSize: 20, fontWeight: 'bold' }
+  headerTitle: { fontSize: 26, fontWeight: '900', color: COLORS.text, letterSpacing: 1 },
+  tabContainer: { 
+    flexDirection: 'row', 
+    backgroundColor: COLORS.card, 
+    marginHorizontal: 20, 
+    borderRadius: 12, 
+    padding: 5,
+    marginBottom: 10
+  },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+  activeTab: { backgroundColor: COLORS.primary },
+  tabText: { color: COLORS.gray, fontWeight: 'bold' },
+  activeTabText: { color: '#000' },
+  card: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    backgroundColor: COLORS.card, 
+    padding: 15, 
+    borderRadius: 18, 
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#1d2133'
+  },
+  leftSide: { flexDirection: 'row', alignItems: 'center' },
+  iconBadge: { padding: 10, borderRadius: 12, marginRight: 15 },
+  symbolText: { color: COLORS.text, fontSize: 17, fontWeight: 'bold' },
+  updateText: { color: COLORS.gray, fontSize: 11, marginTop: 2 },
+  rightSide: { alignItems: 'flex-end' },
+  priceText: { fontSize: 18, fontWeight: 'bold' },
+  changeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  changeText: { fontSize: 13, fontWeight: '600', marginLeft: 4 }
 });
