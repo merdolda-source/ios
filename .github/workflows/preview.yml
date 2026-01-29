@@ -13,7 +13,6 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # ADIM 1: Temizlik
       - name: 🧹 Temizlik ve Hazırlık
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json
 
@@ -66,13 +65,14 @@ jobs:
             };
           };" > babel.config.js
 
-      # ADIM 4: app.json (ID Gömülü)
-      - name: 📄 Create app.json
+      # ADIM 4: app.json (OWNER EKLENDİ - HATAYI ÇÖZEN KISIM)
+      - name: 📄 Create app.json (With Owner)
         run: |
           echo '{
             "expo": {
               "name": "eminxtream",
               "slug": "eminxtream",
+              "owner": "eminxtream",
               "version": "1.0.0",
               "orientation": "portrait",
               "icon": "./assets/icon.png",
@@ -93,8 +93,8 @@ jobs:
             }
           }' > app.json
 
-      # ADIM 5: eas.json (DÜZELTİLEN KISIM: Sadece build ve submit var, update yok)
-      - name: 📄 Create eas.json (Fixed)
+      # ADIM 5: eas.json
+      - name: 📄 Create eas.json
         run: |
           echo '{
             "build": {
@@ -114,4 +114,4 @@ jobs:
       - name: 🚀 Expo'ya Gönder (Update)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "Auto Repair Final" --non-interactive
+        run: eas update --branch preview --message "Fixed Owner Config" --non-interactive
