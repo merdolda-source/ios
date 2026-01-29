@@ -27,19 +27,15 @@ jobs:
       - name: 📦 Bağımlılıkları Yükle
         run: npm install
 
-      # ADIM 1: Önce projeyi Expo ID ile eşleştiriyoruz (eas.json olmadan)
+      # ADIM 1: Projeyi Expo ID ile başlatıyoruz.
+      # Bu komut app.json'a ID'yi ekler ve geçerli bir eas.json oluşturur.
       - name: 🔗 Projeyi Eşleştir (Link)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: eas init --id 7b7866e2-688e-4e87-af97-88213b2670d4 --non-interactive
 
-      # ADIM 2: Eşleşme bittikten sonra eas.json dosyasını "Update" ayarıyla oluşturuyoruz
-      # ( > işareti var olan dosyanın üzerine yazar)
-      - name: ⚙️ EAS Ayarlarını Yapılandır
-        run: |
-          echo '{ "build": { "preview": { "distribution": "internal" } }, "submit": { "production": {} }, "update": { "preview": { "channel": "preview" } } }' > eas.json
-
-      # ADIM 3: Güncellemeyi gönderiyoruz
+      # ADIM 2: Güncellemeyi gönderiyoruz.
+      # Artık eas.json hatası almayacaksın çünkü otomatik oluşanı kullanıyoruz.
       - name: 🚀 Expo'ya Gönder (Update)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
