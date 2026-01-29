@@ -1,4 +1,4 @@
-name: Expo Preview Full Fix
+name: Expo Preview SDK 54 Full Fix
 
 on:
   push:
@@ -13,18 +13,18 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK: Çakışma yaratabilecek her şeyi siliyoruz
+      # 1. TEMİZLİK: Eski sürümlerle çakışmayı önlemek için her şeyi sıfırlıyoruz
       - name: 🧹 Ön Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets
 
-      # 2. NODE KURULUMU: En kararlı sürüm
+      # 2. NODE KURULUMU: Yeni SDK'lar için Node 20+ gereklidir
       - name: 🏗 Node.js Kurulumu
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 3. PACKAGE.JSON: Tüm bağımlılıkları ve eksik olan (asset, font, navigation) paketleri ekledik
-      - name: 📄 package.json Oluştur (Full)
+      # 3. PACKAGE.JSON: SDK 54 için tüm bağımlılıklar ve React 19 uyumu
+      - name: 📄 package.json Oluştur (SDK 54)
         run: |
           echo '{
             "name": "eminxtream",
@@ -33,39 +33,38 @@ jobs:
             "scripts": {
               "start": "expo start",
               "android": "expo start --android",
-              "ios": "expo start --ios",
-              "web": "expo start --web"
+              "ios": "expo start --ios"
             },
             "dependencies": {
-              "expo": "~52.0.25",
-              "react": "18.3.1",
-              "react-native": "0.76.6",
-              "expo-av": "~15.0.2",
-              "expo-keep-awake": "~14.0.2",
-              "expo-status-bar": "~2.0.1",
-              "expo-asset": "~11.0.1",
-              "expo-constants": "~17.0.3",
-              "expo-font": "~13.0.1",
-              "expo-updates": "~0.26.10",
-              "expo-modules-core": "~2.1.1",
+              "expo": "~54.0.0",
+              "react": "19.0.0",
+              "react-native": "0.78.0",
+              "expo-av": "~17.0.0",
+              "expo-keep-awake": "~15.0.0",
+              "expo-status-bar": "~2.1.0",
+              "expo-asset": "~13.0.0",
+              "expo-constants": "~19.0.0",
+              "expo-font": "~15.0.0",
+              "expo-updates": "~0.28.0",
+              "expo-modules-core": "~2.3.0",
               "@expo/vector-icons": "~14.0.0",
-              "@react-native-async-storage/async-storage": "1.23.1",
-              "@react-navigation/native": "^6.1.9",
-              "@react-navigation/stack": "^6.3.20",
-              "@react-navigation/bottom-tabs": "^6.5.11",
-              "react-native-safe-area-context": "4.12.0",
-              "react-native-screens": "~4.4.0",
-              "react-native-gesture-handler": "~2.16.1",
-              "react-native-reanimated": "~3.10.1"
+              "@react-native-async-storage/async-storage": "2.1.0",
+              "@react-navigation/native": "^7.0.0",
+              "@react-navigation/stack": "^7.0.0",
+              "@react-navigation/bottom-tabs": "^7.0.0",
+              "react-native-safe-area-context": "5.0.0",
+              "react-native-screens": "~5.0.0",
+              "react-native-gesture-handler": "~2.22.0",
+              "react-native-reanimated": "~4.0.0"
             },
             "devDependencies": {
-              "@babel/core": "^7.20.0",
-              "babel-preset-expo": "~12.0.0"
+              "@babel/core": "^7.25.0",
+              "babel-preset-expo": "~13.0.0"
             },
             "private": true
           }' > package.json
 
-      # 4. BABEL CONFIG: Reanimated plugin'i eklendi (Navigasyon hatasını önler)
+      # 4. BABEL CONFIG: Modern derleme ayarları
       - name: 📄 babel.config.js Oluştur
         run: |
           echo "module.exports = function(api) {
@@ -76,7 +75,7 @@ jobs:
             };
           };" > babel.config.js
 
-      # 5. APP.JSON: Owner, ProjectId ve Updates ayarları eksiksiz
+      # 5. APP.JSON: SDK 54 uyumlu ayarlar ve Project ID
       - name: 📄 app.json Oluştur
         run: |
           echo '{
@@ -103,29 +102,19 @@ jobs:
             }
           }' > app.json
 
-      # 6. EAS.JSON: Build şeması temizlendi
-      - name: 📄 eas.json Oluştur
-        run: |
-          echo '{
-            "build": {
-              "preview": { "distribution": "internal" },
-              "production": {}
-            }
-          }' > eas.json
-
-      # 7. ASSETS: Eksik resimler yüzünden "Export failed" hatası alınmasını engeller
+      # 6. ASSETS: Eksik resimlerden dolayı build çökmesini engeller
       - name: 🖼 Sahte Varlıklar (Assets) Oluştur
         run: |
           mkdir -p assets
           touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
 
-      # 8. KURULUM VE GÖNDERİM
+      # 7. KURULUM VE GÖNDERİM
       - name: 📦 CLI ve Paket Kurulumu
         run: |
           npm install -g eas-cli
           npm install
 
-      - name: 🚀 Expo EAS Update
+      - name: 🚀 Expo EAS Update (SDK 54)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "Fixed all potential errors" --non-interactive
+        run: eas update --branch preview --message "Upgrade to SDK 54" --non-interactive
