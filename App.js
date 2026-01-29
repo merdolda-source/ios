@@ -1,60 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  FlatList,
-  SafeAreaView,
-  ActivityIndicator,
-  TouchableOpacity,
-  StatusBar,
-  RefreshControl
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, View, FlatList, SafeAreaView, ActivityIndicator, TouchableOpacity, StatusBar } from 'react-native';
 
 const COLORS = {
   bg: '#000000',
   card: '#1C1C1E',
   primary: '#FFD700',
-  up: '#32D74B',
-  down: '#FF453A',
   text: '#FFFFFF',
-  gray: '#8E8E93'
+  up: '#32D74B',
+  down: '#FF453A'
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('doviz');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
   const fetchHaremData = async () => {
     try {
-      // multipart/form-data hazırlığı
+      // Form verilerini senin verdiğin birebir yapıda hazırlıyoruz
       const formData = new FormData();
       formData.append('device_id', '6f8a00c36020b7f4');
       formData.append('dil_kodu', 'tr');
       formData.append('interval', 'dakika');
       
-      // Tarihleri dinamik yapalım (Hata almamak için son 5 dakikayı çekiyoruz)
-      const now = new Date();
-      const fiveMinsAgo = new Date(now.getTime() - 5 * 60000);
-      
-      const formatDate = (date) => date.toISOString().replace('T', ' ').split('.')[0];
-      
-      formData.append('tarih1', formatDate(fiveMinsAgo));
-      formData.append('tarih2', formatDate(now));
-
-      // İstediğin döviz kodları
-      const codes = ['USDTRY', 'EURTRY', 'JPYTRY', 'GBPTRY', 'ALTIN', 'CEYREK_YENI', 'AYAR22'];
+      const codes = ['USDTRY', 'EURTRY', 'JPYTRY', 'GBPTRY'];
       codes.forEach(code => formData.append('kod[]', code));
 
+      // Tarihleri dinamik yapalım ki sunucu "eski veri" diyerek reddetmesin
+      const now = new Date();
+      const before = new Date(now.getTime() - 10 * 60000);
+      const fmt = (d) => d.toISOString().replace('T', ' ').split('.')[0];
+      
+      formData.append('tarih1', fmt(before));
+      formData.append('tarih2', fmt(now));
+
+      // SENİN PAYLAŞTIĞIN TÜM BİLGİLER BURADA:
       const response = await fetch('https://mobil.haremaltin.com/index.php?islem=cur__history&device_id=6f8a00c36020b7f4&dil_kodu=tr', {
         method: 'POST',
         headers: {
-          'Accept': '*/*',
+          'Host': 'mobil.haremaltin.com', // İstediğin Host bilgisi
+          'Accept-Encoding': 'gzip',
           'User-Agent': 'okhttp/4.9.2',
-          // Content-Type FormData kullanıldığında React Native tarafından otomatik belirlenir
+          'Cookie': 'PHPSESSID=dtckdctcili54mmrmmudsf3dcm; AWSALB=nCxKHuwvi5Tb5wafu4GaiGBeptFoVopCXyiat0jDaCv9U4PMkoiZYBUg3MRVM6mzumLcspUoK/UaZF6kD1WteRuJdrEBNd6sVqluYi3RF4b2UirW5kan3so8H2+Y; AWSALBCORS=nCxKHuwvi5Tb5wafu4GaiGBeptFoVopCXyiat0jDaCv9U4PMkoiZYBUg3MRVM6mzumLcspUoK/UaZF6kD1WteRuJdrEBNd6sVqluYi3RF4b2UirW5kan3so8H2+Y',
+          // 'Content-Type': 'multipart/form-data; boundary=b637ad9c-65e7-4cb9-ac2e-e9df7e2cae18' 
+          // Not: React Native'de Content-Type'ı elle yazmak boundary hatasına yol açabilir, 
+          // FormData kullanınca sistem en doğru boundary'yi kendisi ekler.
         },
         body: formData,
       });
@@ -62,95 +51,54 @@ export default function App() {
       const json = await response.json();
       
       if (json.sonuc === "1") {
-        const processed = [];
-        // Gelen veriler history olduğu için her sembolün son verisini alıyoruz
-        Object.keys(json.data).forEach(key => {
-          const historyArray = json.data[key];
-          if (historyArray && historyArray.length > 0) {
-            const lastEntry = historyArray[historyArray.length - 1];
-            const isGold = key.includes('ALTIN') || key.includes('AYAR') || key.includes('CEYREK');
-
-            const item = {
-              id: key,
-              name: key.replace('TRY', '').replace('_', ' '),
-              price: lastEntry.satis,
-              change: lastEntry.yuzde || "0.00",
-              isUp: parseFloat((lastEntry.yuzde || "0").replace(',', '.')) >= 0
-            };
-
-            if (activeTab === 'altin' && isGold) processed.push(item);
-            else if (activeTab === 'doviz' && !isGold) processed.push(item);
-          }
+        const list = Object.keys(json.data).map(key => {
+          const last = json.data[key][json.data[key].length - 1];
+          return {
+            id: key,
+            price: last.satis,
+            change: last.yuzde,
+            isUp: parseFloat(last.yuzde.replace(',', '.')) >= 0
+          };
         });
-        setData(processed);
+        setData(list);
       }
-    } catch (error) {
-      console.error("İstek Hatası:", error);
+    } catch (e) {
+      console.error("Bağlantı Hatası:", e);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchHaremData();
-    const interval = setInterval(fetchHaremData, 30000); // 30 saniyede bir history yenile
-    return () => clearInterval(interval);
-  }, [activeTab]);
-
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <View style={styles.cardLeft}>
-        <View style={[styles.symbolIcon, { backgroundColor: item.isUp ? '#32D74B20' : '#FF453A20' }]}>
-          <Text style={{ color: item.isUp ? COLORS.up : COLORS.down, fontWeight: 'bold' }}>{item.id.substring(0,2)}</Text>
-        </View>
-        <View>
-          <Text style={styles.nameText}>{item.name}</Text>
-          <Text style={styles.subText}>Harem Live</Text>
-        </View>
-      </View>
-      <View style={{ alignItems: 'flex-end' }}>
-        <Text style={styles.priceText}>{item.price} ₺</Text>
-        <Text style={{ color: item.isUp ? COLORS.up : COLORS.down, fontSize: 13, fontWeight: 'bold' }}>
-          {item.isUp ? '▲' : '▼'} %{item.change}
-        </Text>
-      </View>
-    </View>
-  );
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Harem Pro</Text>
-        <View style={styles.statusBadge}>
-          <Text style={styles.statusText}>BAĞLI</Text>
-        </View>
-      </View>
-
-      <View style={styles.tabContainer}>
-        {['doviz', 'altin'].map(tab => (
-          <TouchableOpacity 
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.activeTab]} 
-            onPress={() => {setLoading(true); setActiveTab(tab);}}
-          >
-            <Text style={[styles.tabText, activeTab === tab && {color: '#000'}]}>
-              {tab.toUpperCase()}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <Text style={styles.subTitle}>Host: mobil.haremaltin.com</Text>
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={COLORS.primary} /></View>
+        <ActivityIndicator color={COLORS.primary} size="large" style={{marginTop: 50}} />
       ) : (
         <FlatList
           data={data}
           keyExtractor={item => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={{ padding: 20 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchHaremData();}} tintColor={COLORS.primary} />}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <Text style={styles.symbol}>{item.id}</Text>
+              <View style={{alignItems: 'flex-end'}}>
+                <Text style={styles.price}>{item.price} ₺</Text>
+                <Text style={{color: item.isUp ? COLORS.up : COLORS.down, fontWeight: 'bold'}}>
+                  {item.isUp ? '▲' : '▼'} %{item.change}
+                </Text>
+              </View>
+            </View>
+          )}
+          contentContainerStyle={{padding: 20}}
         />
       )}
     </SafeAreaView>
@@ -159,19 +107,19 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 25 },
-  headerTitle: { fontSize: 32, fontWeight: 'bold', color: COLORS.text },
-  statusBadge: { backgroundColor: '#32D74B20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusText: { color: COLORS.up, fontSize: 10, fontWeight: 'bold' },
-  tabContainer: { flexDirection: 'row', backgroundColor: COLORS.card, marginHorizontal: 20, borderRadius: 15, padding: 5 },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12 },
-  activeTab: { backgroundColor: COLORS.primary },
-  tabText: { color: COLORS.gray, fontWeight: 'bold' },
-  card: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: COLORS.card, padding: 16, borderRadius: 20, marginBottom: 12 },
-  cardLeft: { flexDirection: 'row', alignItems: 'center' },
-  symbolIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  nameText: { color: COLORS.text, fontSize: 17, fontWeight: 'bold' },
-  subText: { color: COLORS.gray, fontSize: 12 },
-  priceText: { color: COLORS.text, fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
-  center: { flex: 1, justifyContent: 'center' }
+  header: { padding: 25 },
+  headerTitle: { fontSize: 34, fontWeight: 'bold', color: COLORS.text },
+  subTitle: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },
+  card: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    backgroundColor: COLORS.card, 
+    padding: 20, 
+    borderRadius: 20, 
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#333'
+  },
+  symbol: { color: COLORS.text, fontSize: 18, fontWeight: 'bold' },
+  price: { color: COLORS.text, fontSize: 20, fontWeight: '800' }
 });
