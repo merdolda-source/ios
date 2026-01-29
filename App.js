@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ActivityIndicator,
-  Animated
+  RefreshControl
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,86 +22,93 @@ const COLORS = {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('doviz'); // 'doviz' veya 'altin'
+  const [activeTab, setActiveTab] = useState('doviz');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [lastData, setLastData] = useState({}); // Önceki fiyatları saklamak için
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchData();
-    // 30 saniyede bir otomatik güncelleme (Anlık hissi verir)
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
   }, [activeTab]);
 
   const fetchData = async () => {
     try {
-      // Not: Gerçek projede altın ve döviz için farklı uç noktalar kullanılabilir.
-      // Bu API her ikisini de kapsayan genel bir settir.
+      // Daha stabil bir yedek API: CollectAPI veya benzeri yerine genelde açık olan bu kaynağı kullanıyoruz
       const response = await fetch('https://finans.truncgil.com/today.json');
       const json = await response.json();
       
       const items = [];
-      for (let key in json) {
-        if (key === 'Update_Date') continue;
+      
+      // JSON içindeki tüm anahtarları dönüyoruz
+      Object.keys(json).forEach(key => {
+        if (key === 'Update_Date') return;
 
-        const currentPrice = parseFloat(json[key].Selling.replace(',', '.'));
-        const previousPrice = lastData[key] || currentPrice;
-        
-        // Değişim yönünü belirle
-        let direction = 'stable';
-        if (currentPrice > previousPrice) direction = 'up';
-        else if (currentPrice < previousPrice) direction = 'down';
+        const item = json[key];
+        const isGold = key.toLowerCase().includes('altin') || 
+                       key.toLowerCase().includes('gram') || 
+                       key.toLowerCase().includes('ceyrek');
 
-        const isGold = key.includes('Altın') || key.includes('Gram') || key.includes('Çeyrek');
-        
+        // Filtreleme Mantığı
         if (activeTab === 'altin' && isGold) {
-          items.push({ name: key, price: json[key].Selling, change: json[key].Change, direction });
+          items.push({
+            id: key,
+            name: key,
+            price: item.Selling,
+            change: item.Change,
+            // API'den gelen veriye göre yön tayini
+            direction: item.Change && item.Change.includes('-') ? 'down' : 'up'
+          });
         } else if (activeTab === 'doviz' && !isGold) {
-          // Sadece popüler dövizleri alalım
-          if (['USD', 'EUR', 'GBP', 'CHF', 'CAD'].includes(key)) {
-            items.push({ name: key, price: json[key].Selling, change: json[key].Change, direction });
+          // Önemli dövizleri listeye ekle
+          const mainCurrencies = ['USD', 'EUR', 'GBP', 'CHF', 'CAD', 'JPY'];
+          if (mainCurrencies.some(c => key.includes(c))) {
+            items.push({
+              id: key,
+              name: key,
+              price: item.Selling,
+              change: item.Change,
+              direction: item.Change && item.Change.includes('-') ? 'down' : 'up'
+            });
           }
         }
-      }
+      });
 
-      // Mevcut fiyatları bir sonraki karşılaştırma için kaydet
-      const newLastData = {};
-      items.forEach(item => { newLastData[item.name] = parseFloat(item.price.replace(',', '.')); });
-      setLastData(newLastData);
-      
       setData(items);
     } catch (error) {
-      console.error("Veri çekme hatası:", error);
+      console.error("Veri çekilemedi:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
+
   const renderItem = ({ item }) => {
-    const isUp = item.direction === 'up';
     const isDown = item.direction === 'down';
-    const color = isUp ? COLORS.up : isDown ? COLORS.down : COLORS.text;
-    const icon = isUp ? 'caret-up' : isDown ? 'caret-down' : 'remove-outline';
+    const color = isDown ? COLORS.down : COLORS.up;
+    const icon = isDown ? 'arrow-down-outline' : 'arrow-up-outline';
 
     return (
       <View style={styles.card}>
         <View style={styles.leftSide}>
-          <View style={[styles.iconBadge, { backgroundColor: color + '20' }]}>
-            <Ionicons name={activeTab === 'doviz' ? 'logo-usd' : 'medal-outline'} size={24} color={color} />
+          <View style={[styles.iconBadge, { backgroundColor: color + '15' }]}>
+            <Ionicons name={activeTab === 'doviz' ? 'cash-outline' : 'trending-up-outline'} size={24} color={color} />
           </View>
           <View>
             <Text style={styles.symbolText}>{item.name}</Text>
-            <Text style={styles.updateText}>Anlık Güncel</Text>
+            <Text style={styles.updateText}>Türkiye Finans</Text>
           </View>
         </View>
 
         <View style={styles.rightSide}>
-          <Text style={[styles.priceText, { color: color }]}>{item.price}</Text>
-          <View style={styles.changeRow}>
-            <Ionicons name={icon} size={16} color={color} />
-            <Text style={[styles.changeText, { color: color }]}>%{item.change || '0.00'}</Text>
+          <Text style={[styles.priceText, { color: COLORS.text }]}>{item.price} ₺</Text>
+          <View style={[styles.changeBadge, { backgroundColor: color }]}>
+            <Ionicons name={icon} size={14} color="#000" />
+            <Text style={styles.changeText}>%{item.change || '0.00'}</Text>
           </View>
         </View>
       </View>
@@ -111,37 +118,47 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Piyasalar</Text>
-        <TouchableOpacity onPress={() => { setLoading(true); fetchData(); }}>
-          <Ionicons name="refresh-circle" size={32} color={COLORS.primary} />
+        <View>
+          <Text style={styles.headerTitle}>Piyasalar</Text>
+          <Text style={{color: COLORS.gray, fontSize: 12}}>Canlı Veri Akışı</Text>
+        </View>
+        <TouchableOpacity onPress={onRefresh}>
+          <Ionicons name="notifications-outline" size={28} color={COLORS.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* TABS SECTION */}
       <View style={styles.tabContainer}>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'doviz' && styles.activeTab]} 
-          onPress={() => setActiveTab('doviz')}
+          onPress={() => { setLoading(true); setActiveTab('doviz'); }}
         >
           <Text style={[styles.tabText, activeTab === 'doviz' && styles.activeTabText]}>DÖVİZ</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'altin' && styles.activeTab]} 
-          onPress={() => setActiveTab('altin')}
+          onPress={() => { setLoading(true); setActiveTab('altin'); }}
         >
           <Text style={[styles.tabText, activeTab === 'altin' && styles.activeTabText]}>ALTIN</Text>
         </TouchableOpacity>
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 50 }} />
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={{color: COLORS.gray, marginTop: 10}}>Veriler Yükleniyor...</Text>
+        </View>
       ) : (
         <FlatList
           data={data}
-          keyExtractor={(item) => item.name}
+          keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: 15 }}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 20 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+          }
+          ListEmptyComponent={
+            <Text style={{color: 'white', textAlign: 'center', marginTop: 20}}>Veri bulunamadı.</Text>
+          }
         />
       )}
     </SafeAreaView>
@@ -150,42 +167,48 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center', 
-    paddingHorizontal: 20, 
-    paddingVertical: 15 
+    paddingHorizontal: 25, 
+    paddingVertical: 20 
   },
-  headerTitle: { fontSize: 26, fontWeight: '900', color: COLORS.text, letterSpacing: 1 },
+  headerTitle: { fontSize: 30, fontWeight: 'bold', color: COLORS.text },
   tabContainer: { 
     flexDirection: 'row', 
     backgroundColor: COLORS.card, 
     marginHorizontal: 20, 
-    borderRadius: 12, 
-    padding: 5,
-    marginBottom: 10
+    borderRadius: 15, 
+    padding: 6
   },
-  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12 },
   activeTab: { backgroundColor: COLORS.primary },
-  tabText: { color: COLORS.gray, fontWeight: 'bold' },
+  tabText: { color: COLORS.gray, fontWeight: 'bold', fontSize: 15 },
   activeTabText: { color: '#000' },
   card: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     backgroundColor: COLORS.card, 
-    padding: 15, 
-    borderRadius: 18, 
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#1d2133'
+    padding: 18, 
+    borderRadius: 20, 
+    marginBottom: 15,
+    alignItems: 'center',
+    elevation: 5 // Android gölge
   },
   leftSide: { flexDirection: 'row', alignItems: 'center' },
-  iconBadge: { padding: 10, borderRadius: 12, marginRight: 15 },
-  symbolText: { color: COLORS.text, fontSize: 17, fontWeight: 'bold' },
-  updateText: { color: COLORS.gray, fontSize: 11, marginTop: 2 },
+  iconBadge: { padding: 12, borderRadius: 15, marginRight: 15 },
+  symbolText: { color: COLORS.text, fontSize: 18, fontWeight: 'bold' },
+  updateText: { color: COLORS.gray, fontSize: 12, marginTop: 3 },
   rightSide: { alignItems: 'flex-end' },
-  priceText: { fontSize: 18, fontWeight: 'bold' },
-  changeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  changeText: { fontSize: 13, fontWeight: '600', marginLeft: 4 }
+  priceText: { fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
+  changeBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 8, 
+    paddingVertical: 4, 
+    borderRadius: 8 
+  },
+  changeText: { fontSize: 12, fontWeight: '900', marginLeft: 3, color: '#000' }
 });
