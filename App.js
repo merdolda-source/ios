@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, FlatList, Alert, Image, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, FlatList, Alert, Image, ActivityIndicator, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -41,7 +41,10 @@ function LoginScreen({ navigation }) {
     if (!url || !username || !password) return Alert.alert('Hata', 'Tüm alanları doldurun.');
     setLoading(true);
 
-    const cleanUrl = url.startsWith('http') ? url : `http://${url}`;
+    let cleanUrl = url.trim();
+    if (!cleanUrl.startsWith('http')) cleanUrl = `http://${cleanUrl}`;
+    if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
+
     const api = `${cleanUrl}/player_api.php?username=${username}&password=${password}`;
 
     try {
@@ -63,8 +66,8 @@ function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>EminXtream Demo</Text>
-      <TextInput style={styles.input} placeholder="Server URL (örn: play.site.com)" placeholderTextColor="#666" onChangeText={setUrl} value={url} autoCapitalize="none" />
+      <Text style={styles.title}>EminXtream Pro</Text>
+      <TextInput style={styles.input} placeholder="Sunucu URL" placeholderTextColor="#666" onChangeText={setUrl} value={url} autoCapitalize="none" />
       <TextInput style={styles.input} placeholder="Kullanıcı Adı" placeholderTextColor="#666" onChangeText={setUsername} value={username} autoCapitalize="none" />
       <TextInput style={styles.input} placeholder="Şifre" placeholderTextColor="#666" onChangeText={setPassword} value={password} secureTextEntry />
       
@@ -85,16 +88,18 @@ function LiveTVScreen({ navigation }) {
   }, []);
 
   const fetchChannels = async () => {
-    const creds = JSON.parse(await AsyncStorage.getItem('user_creds'));
-    // Demo için sadece canlı yayınları çekiyoruz
-    const api = `${creds.url}/player_api.php?username=${creds.username}&password=${creds.password}&action=get_live_streams`;
-    
     try {
+      const credsData = await AsyncStorage.getItem('user_creds');
+      if (!credsData) return;
+      const creds = JSON.parse(credsData);
+      
+      const api = `${creds.url}/player_api.php?username=${creds.username}&password=${creds.password}&action=get_live_streams`;
+      
       const response = await fetch(api);
       const data = await response.json();
-      setChannels(data);
+      setChannels(Array.isArray(data) ? data : []);
     } catch (e) {
-      console.log(e);
+      console.log("Kanal çekme hatası:", e);
     } finally {
       setLoading(false);
     }
@@ -110,7 +115,11 @@ function LiveTVScreen({ navigation }) {
         style={styles.icon} 
         resizeMode="contain"
       />
-      <Text style={styles.cardText} numberOfLines={1}>{item.name}</Text>
+      <View style={{flex: 1}}>
+        <Text style={styles.cardText} numberOfLines={1}>{item.name}</Text>
+        <Text style={{color: COLORS.gray, fontSize: 12}}>ID: {item.stream_id}</Text>
+      </View>
+      <Ionicons name="play-circle" size={24} color={COLORS.primary} />
     </TouchableOpacity>
   );
 
@@ -121,7 +130,7 @@ function LiveTVScreen({ navigation }) {
         data={channels} 
         keyExtractor={(item) => item.stream_id.toString()} 
         renderItem={renderItem}
-        initialNumToRender={10}
+        initialNumToRender={15}
       />}
     </View>
   );
@@ -132,6 +141,7 @@ function PlayerScreen({ route, navigation }) {
   useKeepAwake();
   const { stream, type } = route.params;
   const [url, setUrl] = useState(null);
+  const [error, setError] = useState(false);
   const video = React.useRef(null);
 
   useEffect(() => {
@@ -139,37 +149,52 @@ function PlayerScreen({ route, navigation }) {
   }, []);
 
   const prepareUrl = async () => {
-    const creds = JSON.parse(await AsyncStorage.getItem('user_creds'));
-    // URL Formatı: http://url/live/user/pass/id.ts
-    const ext = type === 'live' ? 'ts' : 'mp4';
+    const credsData = await AsyncStorage.getItem('user_creds');
+    const creds = JSON.parse(credsData);
+    
+    // iOS için m3u8 formatı genellikle daha kararlıdır
+    const ext = Platform.OS === 'ios' ? 'm3u8' : 'ts';
     const path = type === 'live' ? 'live' : 'movie';
     const streamUrl = `${creds.url}/${path}/${creds.username}/${creds.password}/${stream.stream_id}.${ext}`;
+    
     setUrl(streamUrl);
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'center' }}>
       <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
-        <Ionicons name="close" size={30} color="white" />
+        <Ionicons name="close-circle" size={40} color="white" />
       </TouchableOpacity>
       
-      {url && (
+      {url ? (
         <Video
           ref={video}
-          style={{ width: '100%', height: 300 }}
+          style={{ width: '100%', height: 280 }}
           source={{ uri: url }}
           useNativeControls
           resizeMode={ResizeMode.CONTAIN}
-          isLooping={false}
           shouldPlay
+          onError={(e) => {
+            console.log("Video Hatası:", e);
+            setError(true);
+          }}
         />
+      ) : <ActivityIndicator color={COLORS.primary} />}
+
+      {error && (
+        <Text style={{color: 'red', textAlign: 'center', marginTop: 10}}>
+          Yayın şu an iPhone'da oynatılamıyor. Format uyumsuz olabilir.
+        </Text>
       )}
-      <Text style={{color:'white', textAlign:'center', marginTop: 20}}>{stream.name}</Text>
+      
+      <Text style={{color:'white', textAlign:'center', marginTop: 20, fontSize: 18, fontWeight: 'bold'}}>
+        {stream.name}
+      </Text>
     </View>
   );
 }
 
-// --- NAVIGASYON YAPISI ---
+// --- NAVIGASYON ---
 function MainTabs() {
   return (
     <Tab.Navigator
@@ -200,13 +225,13 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, padding: 20, paddingTop: 50 },
-  title: { fontSize: 28, fontWeight: 'bold', color: COLORS.primary, marginBottom: 30, textAlign: 'center' },
-  input: { backgroundColor: COLORS.card, color: 'white', padding: 15, borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#333' },
-  button: { backgroundColor: COLORS.purple, padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 10 },
-  btnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-  card: { flexDirection: 'row', backgroundColor: COLORS.card, padding: 15, marginBottom: 10, borderRadius: 8, alignItems: 'center' },
-  icon: { width: 40, height: 40, marginRight: 15, borderRadius: 5 },
-  cardText: { color: 'white', fontSize: 16, flex: 1 },
-  closeBtn: { position: 'absolute', top: 40, right: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 5 }
+  container: { flex: 1, backgroundColor: COLORS.bg, padding: 15, paddingTop: 40 },
+  title: { fontSize: 32, fontWeight: 'bold', color: COLORS.primary, marginBottom: 30, textAlign: 'center' },
+  input: { backgroundColor: COLORS.card, color: 'white', padding: 15, borderRadius: 12, marginBottom: 15, borderWidth: 1, borderColor: '#222' },
+  button: { backgroundColor: COLORS.purple, padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 10, shadowColor: COLORS.purple, shadowOpacity: 0.5, shadowRadius: 10 },
+  btnText: { color: 'white', fontWeight: 'bold', fontSize: 18 },
+  card: { flexDirection: 'row', backgroundColor: COLORS.card, padding: 12, marginBottom: 8, borderRadius: 12, alignItems: 'center' },
+  icon: { width: 50, height: 50, marginRight: 15, borderRadius: 8 },
+  cardText: { color: 'white', fontSize: 16, fontWeight: '500' },
+  closeBtn: { position: 'absolute', top: 50, right: 20, zIndex: 10 }
 });
