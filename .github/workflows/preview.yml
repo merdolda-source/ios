@@ -1,4 +1,4 @@
-name: Expo Preview
+name: Expo Preview Full Fix
 
 on:
   push:
@@ -13,17 +13,18 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # ADIM 1: Temizlik
-      - name: 🧹 Temizlik ve Hazırlık
+      # 1. TEMİZLİK: Çakışma yaratabilecek her şeyi siliyoruz
+      - name: 🧹 Ön Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets
 
+      # 2. NODE KURULUMU: En kararlı sürüm
       - name: 🏗 Node.js Kurulumu
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
-      # ADIM 2: package.json (EKSİK KÜTÜPHANELER EKLENDİ)
-      - name: 📄 Create package.json (Full Dependencies)
+      # 3. PACKAGE.JSON: Tüm bağımlılıkları ve eksik olan (asset, font, navigation) paketleri ekledik
+      - name: 📄 package.json Oluştur (Full)
         run: |
           echo '{
             "name": "eminxtream",
@@ -36,21 +37,26 @@ jobs:
               "web": "expo start --web"
             },
             "dependencies": {
-              "@react-native-async-storage/async-storage": "1.23.1",
-              "@react-navigation/bottom-tabs": "^6.5.11",
-              "@react-navigation/native": "^6.1.9",
-              "@react-navigation/stack": "^6.3.20",
-              "react-native-gesture-handler": "~2.16.1",
-              "react-native-reanimated": "~3.10.1",
               "expo": "~52.0.25",
+              "react": "18.3.1",
+              "react-native": "0.76.6",
               "expo-av": "~15.0.2",
               "expo-keep-awake": "~14.0.2",
               "expo-status-bar": "~2.0.1",
+              "expo-asset": "~11.0.1",
+              "expo-constants": "~17.0.3",
+              "expo-font": "~13.0.1",
+              "expo-updates": "~0.26.10",
+              "expo-modules-core": "~2.1.1",
               "@expo/vector-icons": "~14.0.0",
-              "react": "18.3.1",
-              "react-native": "0.76.6",
+              "@react-native-async-storage/async-storage": "1.23.1",
+              "@react-navigation/native": "^6.1.9",
+              "@react-navigation/stack": "^6.3.20",
+              "@react-navigation/bottom-tabs": "^6.5.11",
               "react-native-safe-area-context": "4.12.0",
-              "react-native-screens": "~4.4.0"
+              "react-native-screens": "~4.4.0",
+              "react-native-gesture-handler": "~2.16.1",
+              "react-native-reanimated": "~3.10.1"
             },
             "devDependencies": {
               "@babel/core": "^7.20.0",
@@ -59,8 +65,8 @@ jobs:
             "private": true
           }' > package.json
 
-      # ADIM 3: babel.config.js
-      - name: 📄 Create babel.config.js
+      # 4. BABEL CONFIG: Reanimated plugin'i eklendi (Navigasyon hatasını önler)
+      - name: 📄 babel.config.js Oluştur
         run: |
           echo "module.exports = function(api) {
             api.cache(true);
@@ -70,8 +76,8 @@ jobs:
             };
           };" > babel.config.js
 
-      # ADIM 4: app.json (Owner Eklendi)
-      - name: 📄 Create app.json
+      # 5. APP.JSON: Owner, ProjectId ve Updates ayarları eksiksiz
+      - name: 📄 app.json Oluştur
         run: |
           echo '{
             "expo": {
@@ -81,49 +87,45 @@ jobs:
               "version": "1.0.0",
               "orientation": "portrait",
               "icon": "./assets/icon.png",
-              "userInterfaceStyle": "light",
+              "userInterfaceStyle": "dark",
               "splash": {
                 "image": "./assets/splash.png",
                 "resizeMode": "contain",
-                "backgroundColor": "#ffffff"
+                "backgroundColor": "#050710"
               },
-              "ios": { "supportsTablet": true },
-              "android": { "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#ffffff" } },
-              "web": { "favicon": "./assets/favicon.png" },
+              "ios": { "supportsTablet": true, "bundleIdentifier": "com.eminxtream.app" },
+              "android": { "package": "com.eminxtream.app" },
+              "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
+              "runtimeVersion": { "policy": "appVersion" },
               "extra": {
-                "eas": {
-                  "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4"
-                }
+                "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" }
               }
             }
           }' > app.json
 
-      # ADIM 5: eas.json
-      - name: 📄 Create eas.json
+      # 6. EAS.JSON: Build şeması temizlendi
+      - name: 📄 eas.json Oluştur
         run: |
           echo '{
             "build": {
               "preview": { "distribution": "internal" },
               "production": {}
-            },
-            "submit": { "production": {} }
+            }
           }' > eas.json
 
-      # ADIM 6: EKSİK RESİMLERİ OLUŞTUR (Bu Adım Çok Kritik)
-      # Eğer assets klasörü yoksa build patlar. Burada sahte resimler oluşturuyoruz.
-      - name: 🖼 Create Dummy Assets
+      # 7. ASSETS: Eksik resimler yüzünden "Export failed" hatası alınmasını engeller
+      - name: 🖼 Sahte Varlıklar (Assets) Oluştur
         run: |
           mkdir -p assets
           touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
 
-      - name: 📦 EAS CLI Yükle
-        run: npm install -g eas-cli
+      # 8. KURULUM VE GÖNDERİM
+      - name: 📦 CLI ve Paket Kurulumu
+        run: |
+          npm install -g eas-cli
+          npm install
 
-      - name: 📦 Bağımlılıkları Yükle
-        run: npm install
-
-      # ADIM 7: Güncellemeyi Gönder
-      - name: 🚀 Expo'ya Gönder (Update)
+      - name: 🚀 Expo EAS Update
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "Final Fix Dependencies" --non-interactive
+        run: eas update --branch preview --message "Fixed all potential errors" --non-interactive
