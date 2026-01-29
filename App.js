@@ -17,20 +17,11 @@ function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const saved = await AsyncStorage.getItem('user_creds');
-      if (saved) navigation.replace('Dashboard');
-    })();
-  }, []);
-
   const handleLogin = async () => {
     if (!url || !username || !password) return Alert.alert('Hata', 'Bilgileri girin.');
     setLoading(true);
     let cleanUrl = url.trim();
     if (!cleanUrl.startsWith('http')) cleanUrl = `http://${cleanUrl}`;
-    if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
-
     try {
       const response = await fetch(`${cleanUrl}/player_api.php?username=${username}&password=${password}`);
       const data = await response.json();
@@ -38,18 +29,18 @@ function LoginScreen({ navigation }) {
         await AsyncStorage.setItem('user_creds', JSON.stringify({ url: cleanUrl, username, password }));
         navigation.replace('Dashboard');
       } else { Alert.alert('Hata', 'Giriş başarısız.'); }
-    } catch (e) { Alert.alert('Hata', 'Sunucu hatası.'); }
+    } catch (e) { Alert.alert('Hata', 'Bağlantı sorunu.'); }
     finally { setLoading(false); }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>EminXtream Pro</Text>
-      <TextInput style={styles.input} placeholder="URL" placeholderTextColor={COLORS.gray} onChangeText={setUrl} value={url} autoCapitalize="none" />
-      <TextInput style={styles.input} placeholder="User" placeholderTextColor={COLORS.gray} onChangeText={setUsername} value={username} autoCapitalize="none" />
-      <TextInput style={styles.input} placeholder="Pass" placeholderTextColor={COLORS.gray} onChangeText={setPassword} value={password} secureTextEntry />
+      <TextInput style={styles.input} placeholder="Sunucu URL" placeholderTextColor={COLORS.gray} onChangeText={setUrl} value={url} autoCapitalize="none" />
+      <TextInput style={styles.input} placeholder="Kullanıcı Adı" placeholderTextColor={COLORS.gray} onChangeText={setUsername} value={username} autoCapitalize="none" />
+      <TextInput style={styles.input} placeholder="Şifre" placeholderTextColor={COLORS.gray} onChangeText={setPassword} value={password} secureTextEntry />
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-        {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.btnText}>GİRİŞ</Text>}
+        <Text style={styles.btnText}>{loading ? 'GİRİLİYOR...' : 'GİRİŞ YAP'}</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -101,7 +92,7 @@ function ListScreen({ route, navigation }) {
         renderItem={({item}) => (
           <TouchableOpacity style={styles.listCard} onPress={() => navigation.navigate('Player', { item, type })}>
             <Image source={{ uri: item.stream_icon || 'https://via.placeholder.com/50' }} style={styles.listIcon} />
-            <Text style={styles.listText}>{item.name}</Text>
+            <Text style={styles.listText} numberOfLines={1}>{item.name}</Text>
             <Ionicons name="play" size={24} color={COLORS.primary} />
           </TouchableOpacity>
         )}
@@ -110,39 +101,62 @@ function ListScreen({ route, navigation }) {
   );
 }
 
-// --- PLAYER (ÖZEL FORMAT ÇÖZÜMÜ) ---
+// --- PLAYER (iOS .mkv & .mp4 Fix) ---
 function PlayerScreen({ route, navigation }) {
   useKeepAwake();
-  const { item } = route.params;
+  const { item, type } = route.params;
   const [url, setUrl] = useState(null);
-  const [mode, setMode] = useState('direct'); // Senin link formatın için varsayılan 'direct'
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     (async () => {
       const creds = JSON.parse(await AsyncStorage.getItem('user_creds'));
       const id = item.stream_id || item.series_id;
       
+      // Senin verdiğin örnek formata göre URL inşası
       let finalUrl = "";
-      if (mode === 'direct') {
-        // FORMAT: http://host:port/user/pass/id (Senin örneğin)
-        finalUrl = `${creds.url}/${creds.username}/${creds.password}/${id}`;
+      if (type === 'live') {
+        const ext = Platform.OS === 'ios' ? 'm3u8' : 'ts';
+        finalUrl = `${creds.url}/live/${creds.username}/${creds.password}/${id}.${ext}`;
       } else {
-        // FORMAT: http://host:port/live/user/pass/id.m3u8 (Standart iPhone)
-        finalUrl = `${creds.url}/live/${creds.username}/${creds.password}/${id}.m3u8`;
+        // Dizi ve Filmler için senin verdiğin .mkv veya .mp4 uzantısını kullanıyoruz
+        const ext = item.container_extension || 'mkv'; 
+        finalUrl = `${creds.url}/${type}/${creds.username}/${creds.password}/${id}.${ext}`;
       }
+      
+      console.log("Oynatılan URL:", finalUrl);
       setUrl(finalUrl);
     })();
-  }, [mode]);
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center' }}>
-      <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}><Ionicons name="close" size={40} color="white" /></TouchableOpacity>
-      {url && <Video source={{ uri: url }} style={{ width: '100%', height: 300 }} useNativeControls resizeMode={ResizeMode.CONTAIN} shouldPlay />}
-      <View style={{padding: 20, alignItems: 'center'}}>
-        <TouchableOpacity style={styles.formatBtn} onPress={() => setMode(mode === 'direct' ? 'standard' : 'direct')}>
-          <Text style={{color: 'white'}}>MOD DEĞİŞTİR: {mode.toUpperCase()}</Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
+        <Ionicons name="close" size={40} color="white" />
+      </TouchableOpacity>
+
+      {url && !error ? (
+        <Video
+          source={{ uri: url }}
+          style={{ width: '100%', height: 300 }}
+          useNativeControls
+          resizeMode={ResizeMode.CONTAIN}
+          shouldPlay
+          onError={(e) => {
+            console.log("Video Hatası:", e);
+            setError(true);
+          }}
+        />
+      ) : <ActivityIndicator size="large" color={COLORS.primary} />}
+
+      {error && (
+        <View style={{padding: 20}}>
+          <Text style={{color: 'red', textAlign: 'center'}}>
+            iPhone bu formatı (.mkv) doğrudan oynatamıyor olabilir.
+            Lütfen sunucudan .mp4 veya HLS çıkışı isteyin.
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -172,6 +186,5 @@ const styles = StyleSheet.create({
   listCard: { flexDirection: 'row', backgroundColor: COLORS.card, padding: 10, borderRadius: 10, marginBottom: 5, alignItems: 'center' },
   listIcon: { width: 40, height: 40, borderRadius: 5, marginRight: 10 },
   listText: { color: '#fff', flex: 1 },
-  closeBtn: { position: 'absolute', top: 40, right: 20, zIndex: 10 },
-  formatBtn: { backgroundColor: COLORS.card, padding: 10, borderRadius: 5, borderWidth: 1, borderColor: COLORS.primary }
+  closeBtn: { position: 'absolute', top: 40, right: 20, zIndex: 10 }
 });
