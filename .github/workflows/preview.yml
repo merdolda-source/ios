@@ -1,4 +1,4 @@
-name: Expo Preview SDK 54 Stable Fix
+name: EminXtream SDK 54 Full Fix
 
 on:
   push:
@@ -84,14 +84,15 @@ jobs:
                   "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
                 }
               },
-              "updates": { "url": "https://u.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
+              "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
+              "runtimeVersion": { "policy": "appVersion" },
               "extra": {
                 "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" }
               }
             }
           }' > app.json
 
-      - name: 🖼 Sahte Varlıklar Oluştur
+      - name: 🖼 Assets Oluştur
         run: |
           mkdir -p assets
           touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
@@ -104,4 +105,4 @@ jobs:
       - name: 🚀 Expo EAS Update
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "SDK 54 Authentication Fix" --non-interactive
+        run: eas update --branch preview --message "Full SDK 54 and iOS Fix" --non-interactive
