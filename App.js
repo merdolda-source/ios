@@ -1,137 +1,66 @@
 import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  FlatList,
-  SafeAreaView,
-  ActivityIndicator,
-  TextInput,
-  StatusBar
-} from 'react-native';
+import { StyleSheet, Text, View, FlatList, SafeAreaView, ActivityIndicator, RefreshControl } from 'react-native';
 
 const COLORS = {
   bg: '#09090b',
   card: '#18181b',
-  border: '#27272a',
-  text: '#e4e4e7',
   gold: '#eab308',
   green: '#22c55e',
   red: '#ef4444',
-  dim: '#71717a'
+  text: '#ffffff'
 };
 
 export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
 
-  const genId = (n) => [...Array(n)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-
-  const fetchHaremData = async () => {
+  const fetchFromMyJson = async () => {
     try {
-      const deviceId = genId(16);
-      const boundary = "----WebKitFormBoundary" + genId(8);
-      
-      // PHP ile birebir aynı tarih formatı
-      const now = new Date();
-      const offset = now.getTimezoneOffset() * 60000;
-      const localISOTime = (new Date(now - offset)).toISOString().slice(0, 19).replace('T', ' ');
-      const todayStart = localISOTime.split(' ')[0] + " 00:00:00";
-
-      const codes = ["USDTRY", "EURTRY", "GBPTRY", "ALTIN", "ONS", "CEYREK_YENI", "AYAR22"];
-      
-      // Manuel Multipart Body Oluşturma
-      let body = "";
-      const params = {
-        device_id: deviceId,
-        dil_kodu: 'tr',
-        tarih1: todayStart,
-        tarih2: localISOTime,
-        interval: 'dakika'
-      };
-
-      for (let key in params) {
-        body += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${params[key]}\r\n`;
-      }
-      codes.forEach(c => {
-        body += `--${boundary}\r\nContent-Disposition: form-data; name="kod[]"\r\n\r\n${c}\r\n`;
-      });
-      body += `--${boundary}--\r\n`;
-
-      const response = await fetch(`https://mobil.haremaltin.com/index.php?islem=cur__history&device_id=${deviceId}&dil_kodu=tr`, {
-        method: 'POST',
-        headers: {
-          'User-Agent': 'okhttp/4.9.2',
-          'Content-Type': `multipart/form-data; boundary=${boundary}`,
-          'Cookie': `PHPSESSID=${genId(20)}`,
-          'Accept': '*/*'
-        },
-        body: body
-      });
-
+      // BURAYA KENDİ PHP LİNKİNİ YAZ (Örn: https://siten.com/bridge.php)
+      const response = await fetch('https://siten.com/bridge.php'); 
       const json = await response.json();
-      
-      if (json && json.data) {
-        const items = Object.keys(json.data).map(key => {
-          const history = json.data[key];
-          const last = history[history.length - 1];
-          return {
-            k: key,
-            s: last.satis,
-            y: parseFloat(last.yuzde.replace(',', '.'))
-          };
-        });
-        setData(items);
-      }
-    } catch (e) {
-      console.log("Hata:", e);
+      setData(json);
+    } catch (error) {
+      console.error("JSON çekilemedi:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchHaremData();
-    const t = setInterval(fetchHaremData, 15000);
-    return () => clearInterval(t);
+    fetchFromMyJson();
+    const timer = setInterval(fetchFromMyJson, 10000); // 10 saniyede bir sessizce yeniler
+    return () => clearInterval(timer);
   }, []);
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
       <View style={styles.header}>
-        <Text style={styles.logo}>PİYASA EKRANI</Text>
-        <Text style={styles.time}>{new Date().toLocaleTimeString('tr-TR')}</Text>
+        <Text style={styles.logo}>CANLI PİYASA</Text>
+        <View style={styles.liveBadge}><Text style={styles.liveText}>CANLI</Text></View>
       </View>
 
-      <TextInput 
-        style={styles.search} 
-        placeholder="Sembol filtrele..." 
-        placeholderTextColor={COLORS.dim}
-        onChangeText={setSearch}
-      />
-
-      {loading && data.length === 0 ? (
-        <ActivityIndicator color={COLORS.gold} style={{ marginTop: 50 }} />
+      {loading ? (
+        <ActivityIndicator color={COLORS.gold} style={{marginTop: 50}} />
       ) : (
         <FlatList
-          data={data.filter(i => i.k.includes(search.toUpperCase()))}
-          keyExtractor={item => item.k}
+          data={data}
+          keyExtractor={(item) => item.k}
           renderItem={({ item }) => (
-            <View style={styles.row}>
+            <View style={styles.card}>
               <View>
-                <Text style={styles.symbol}>{item.k}</Text>
-                <Text style={styles.sub}>Harem Altın</Text>
+                <Text style={styles.symbol}>{item.k.replace('TRY', '')}</Text>
+                <Text style={styles.time}>{item.t.split(' ')[1]}</Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
+              <View style={{alignItems: 'flex-end'}}>
                 <Text style={styles.price}>{item.s} ₺</Text>
-                <Text style={{ color: item.y >= 0 ? COLORS.green : COLORS.red, fontWeight: 'bold' }}>
-                  {item.y >= 0 ? '▲' : '▼'} %{Math.abs(item.y).toFixed(2)}
+                <Text style={{color: item.y === 1 ? COLORS.green : item.y === -1 ? COLORS.red : COLORS.text}}>
+                  {item.y === 1 ? '▲ Yükselişte' : item.y === -1 ? '▼ Düşüşte' : '● Sabit'}
                 </Text>
               </View>
             </View>
           )}
+          contentContainerStyle={{padding: 15}}
         />
       )}
     </SafeAreaView>
@@ -140,12 +69,21 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderColor: COLORS.border },
-  logo: { color: COLORS.gold, fontSize: 20, fontWeight: '900' },
-  time: { color: COLORS.green, fontFamily: 'Courier' },
-  search: { backgroundColor: '#000', color: '#fff', margin: 15, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border },
-  row: { flexDirection: 'row', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderColor: COLORS.border },
-  symbol: { color: COLORS.text, fontSize: 16, fontWeight: 'bold' },
-  sub: { color: COLORS.dim, fontSize: 10 },
-  price: { color: '#fff', fontSize: 18, fontWeight: 'bold' }
+  header: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  logo: { color: COLORS.gold, fontSize: 22, fontWeight: '900' },
+  liveBadge: { backgroundColor: COLORS.green + '20', padding: 5, borderRadius: 5 },
+  liveText: { color: COLORS.green, fontSize: 10, fontWeight: 'bold' },
+  card: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    backgroundColor: COLORS.card, 
+    padding: 20, 
+    borderRadius: 15, 
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#27272a'
+  },
+  symbol: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  time: { color: '#71717a', fontSize: 12 },
+  price: { color: '#fff', fontSize: 20, fontWeight: 'bold' }
 });
