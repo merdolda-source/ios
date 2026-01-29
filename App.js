@@ -16,8 +16,8 @@ export default function App() {
 
   const fetchFromMyJson = async () => {
     try {
-      // BURAYA KENDİ PHP LİNKİNİ YAZ (Örn: https://siten.com/bridge.php)
-      const response = await fetch('https://siten.com/bridge.php'); 
+      // BURAYA KENDİ PHP LİNKİNİ YAZ (Örn: https)
+      const response = await fetch('https://imdatgel.site/harem/'); 
       const json = await response.json();
       setData(json);
     } catch (error) {
