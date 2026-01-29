@@ -1,4 +1,4 @@
-name: EminXtream SDK 54 & iOS Fix
+name: EminXtream iOS Safari Fix
 
 on:
   push:
@@ -57,7 +57,7 @@ jobs:
             "private": true
           }' > package.json
 
-      - name: 📄 app.json (iOS HTTP & SDK 54 Fix)
+      - name: 📄 app.json (Kritik iOS HTTP Fix)
         run: |
           echo '{
             "expo": {
@@ -65,30 +65,27 @@ jobs:
               "slug": "eminxtream",
               "owner": "eminxtream",
               "version": "1.0.0",
-              "orientation": "portrait",
-              "icon": "./assets/icon.png",
-              "userInterfaceStyle": "dark",
               "ios": {
                 "bundleIdentifier": "com.eminxtream.app",
                 "infoPlist": {
-                  "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+                  "NSAppTransportSecurity": {
+                    "NSAllowsArbitraryLoads": true,
+                    "NSExceptionDomains": { "72.72ten.xyz": { "NSExceptionAllowsInsecureHTTPLoads": true } }
+                  }
                 }
               },
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
-              "runtimeVersion": { "policy": "appVersion" },
-              "extra": {
-                "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" }
-              }
+              "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
             }
           }' > app.json
 
-      - name: 🖼 Sahte Varlıklar (Assets) Oluştur
+      - name: 🖼 Sahte Assets
         run: mkdir -p assets && touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
 
-      - name: 📦 Paket Kurulumu
-        run: npm install -g eas-cli && npm install --legacy-peer-deps
-
-      - name: 🚀 Expo EAS Update
+      - name: 📦 Kurulum ve Gönderim
+        run: |
+          npm install -g eas-cli
+          npm install --legacy-peer-deps
+          eas update --branch preview --message "iOS HTTP & SDK 54 Fix" --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "SDK 54 & iOS HTTP Fix" --non-interactive
