@@ -13,16 +13,16 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      - name: 🧹 Temizlik Yap (Eskileri Sil)
-        run: rm -rf node_modules package-lock.json package.json eas.json
+      - name: 🧹 Temizlik (Hatalı Dosyaları Sil)
+        run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json
 
       - name: 🏗 Node.js Kurulumu
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      # 👇 İŞTE ÇÖZÜM BURASI: package.json'ı EN GÜNCEL HALİYLE YENİDEN YAZIYORUZ
-      - name: 🔥 Fix Versions (Upgrade to SDK 52)
+      # 1. package.json OLUŞTUR (SDK 52 Uyumlu - Eksiksiz)
+      - name: 📄 Create package.json
         run: |
           echo '{
             "name": "eminxtream",
@@ -49,25 +49,75 @@ jobs:
               "react-native-screens": "~4.4.0"
             },
             "devDependencies": {
-              "@babel/core": "^7.20.0"
+              "@babel/core": "^7.20.0",
+              "babel-preset-expo": "~12.0.0"
             },
             "private": true
           }' > package.json
 
+      # 2. babel.config.js OLUŞTUR (HATAYI ÇÖZEN KISIM BURASI)
+      - name: 📄 Create babel.config.js
+        run: |
+          echo "module.exports = function(api) {
+            api.cache(true);
+            return {
+              presets: ['babel-preset-expo'],
+            };
+          };" > babel.config.js
+
+      # 3. app.json OLUŞTUR (Expo Ayarları)
+      - name: 📄 Create app.json
+        run: |
+          echo '{
+            "expo": {
+              "name": "eminxtream",
+              "slug": "eminxtream",
+              "version": "1.0.0",
+              "orientation": "portrait",
+              "icon": "./assets/icon.png",
+              "userInterfaceStyle": "light",
+              "splash": {
+                "image": "./assets/splash.png",
+                "resizeMode": "contain",
+                "backgroundColor": "#ffffff"
+              },
+              "assetBundlePatterns": [
+                "**/*"
+              ],
+              "ios": {
+                "supportsTablet": true
+              },
+              "android": {
+                "adaptiveIcon": {
+                  "foregroundImage": "./assets/adaptive-icon.png",
+                  "backgroundColor": "#ffffff"
+                }
+              },
+              "web": {
+                "favicon": "./assets/favicon.png"
+              },
+              "extra": {
+                "eas": {
+                  "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4"
+                }
+              }
+            }
+          }' > app.json
+
       - name: 📦 EAS CLI Yükle
         run: npm install -g eas-cli
 
-      - name: 📦 Bağımlılıkları Yükle (Güncel)
+      - name: 📦 Bağımlılıkları Yükle
         run: npm install
 
-      # Projeyi Tekrar Bağla
+      # 4. Projeyi Tekrar Bağla (EAS)
       - name: 🔗 Projeyi Eşleştir (Link)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: eas init --id 7b7866e2-688e-4e87-af97-88213b2670d4 --non-interactive
 
-      # Güncellemeyi Gönder
+      # 5. Güncellemeyi Gönder
       - name: 🚀 Expo'ya Gönder (Update)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "SDK Upgrade Fix" --non-interactive
+        run: eas update --branch preview --message "Fixed Config Files" --non-interactive
