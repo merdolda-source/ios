@@ -1,125 +1,172 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, SafeAreaView, ActivityIndicator, TouchableOpacity, StatusBar } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  SafeAreaView,
+  ActivityIndicator,
+  TouchableOpacity,
+  StatusBar,
+  TextInput
+} from 'react-native';
 
 const COLORS = {
-  bg: '#000000',
-  card: '#1C1C1E',
-  primary: '#FFD700',
-  text: '#FFFFFF',
-  up: '#32D74B',
-  down: '#FF453A'
+  bg: '#09090b',
+  card: '#18181b',
+  border: '#27272a',
+  text: '#e4e4e7',
+  gold: '#eab308',
+  green: '#22c55e',
+  red: '#ef4444',
+  dim: '#71717a'
 };
 
 export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
-  const fetchHaremData = async () => {
+  // PHP'deki _x1 fonksiyonu (Rastgele ID üretici)
+  const generateID = (n) => {
+    const chars = '0123456789abcdef';
+    let result = '';
+    for (let i = 0; i < n; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
+  const fetchHaremPro = async () => {
     try {
-      // Form verilerini senin verdiğin birebir yapıda hazırlıyoruz
-      const formData = new FormData();
-      formData.append('device_id', '6f8a00c36020b7f4');
-      formData.append('dil_kodu', 'tr');
-      formData.append('interval', 'dakika');
-      
-      const codes = ['USDTRY', 'EURTRY', 'JPYTRY', 'GBPTRY'];
-      codes.forEach(code => formData.append('kod[]', code));
+      const deviceId = generateID(16);
+      const sessionId = generateID(20);
+      const boundary = "----WebKitFormBoundary" + generateID(8);
 
-      // Tarihleri dinamik yapalım ki sunucu "eski veri" diyerek reddetmesin
+      // PHP'deki tarih mantığı
       const now = new Date();
-      const before = new Date(now.getTime() - 10 * 60000);
-      const fmt = (d) => d.toISOString().replace('T', ' ').split('.')[0];
-      
-      formData.append('tarih1', fmt(before));
-      formData.append('tarih2', fmt(now));
+      const t2 = now.toISOString().replace('T', ' ').split('.')[0];
+      const t1 = new Date(now.setHours(0, 0, 0, 0)).toISOString().replace('T', ' ').split('.')[0];
 
-      // SENİN PAYLAŞTIĞIN TÜM BİLGİLER BURADA:
-      const response = await fetch('https://mobil.haremaltin.com/index.php?islem=cur__history&device_id=6f8a00c36020b7f4&dil_kodu=tr', {
+      const codes = ["USDTRY", "EURTRY", "GBPTRY", "ALTIN", "ONS", "CEYREK_YENI", "AYAR22", "GUMUSTRY"];
+      
+      const formData = new FormData();
+      formData.append('device_id', deviceId);
+      formData.append('dil_kodu', 'tr');
+      formData.append('tarih1', t1);
+      formData.append('tarih2', t2);
+      formData.append('interval', 'dakika');
+      codes.forEach(c => formData.append('kod[]', c));
+
+      const response = await fetch(`https://mobil.haremaltin.com/index.php?islem=cur__history&device_id=${deviceId}&dil_kodu=tr`, {
         method: 'POST',
         headers: {
-          'Host': 'mobil.haremaltin.com', // İstediğin Host bilgisi
-          'Accept-Encoding': 'gzip',
           'User-Agent': 'okhttp/4.9.2',
-          'Cookie': 'PHPSESSID=dtckdctcili54mmrmmudsf3dcm; AWSALB=nCxKHuwvi5Tb5wafu4GaiGBeptFoVopCXyiat0jDaCv9U4PMkoiZYBUg3MRVM6mzumLcspUoK/UaZF6kD1WteRuJdrEBNd6sVqluYi3RF4b2UirW5kan3so8H2+Y; AWSALBCORS=nCxKHuwvi5Tb5wafu4GaiGBeptFoVopCXyiat0jDaCv9U4PMkoiZYBUg3MRVM6mzumLcspUoK/UaZF6kD1WteRuJdrEBNd6sVqluYi3RF4b2UirW5kan3so8H2+Y',
-          // 'Content-Type': 'multipart/form-data; boundary=b637ad9c-65e7-4cb9-ac2e-e9df7e2cae18' 
-          // Not: React Native'de Content-Type'ı elle yazmak boundary hatasına yol açabilir, 
-          // FormData kullanınca sistem en doğru boundary'yi kendisi ekler.
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Cookie': `PHPSESSID=${sessionId}`
         },
-        body: formData,
+        body: formData
       });
 
       const json = await response.json();
       
       if (json.sonuc === "1") {
-        const list = Object.keys(json.data).map(key => {
-          const last = json.data[key][json.data[key].length - 1];
+        const processed = Object.keys(json.data).map(key => {
+          const history = json.data[key];
+          const last = history[history.length - 1];
+          const isGold = key.includes('ALTIN') || key.includes('AYAR') || key.includes('ONS');
+          
           return {
-            id: key,
-            price: last.satis,
-            change: last.yuzde,
-            isUp: parseFloat(last.yuzde.replace(',', '.')) >= 0
+            k: key,
+            s: last.satis,
+            a: last.alis,
+            y: parseFloat(last.yuzde.replace(',', '.'))
           };
         });
-        setData(list);
+        setData(processed);
       }
-    } catch (e) {
-      console.error("Bağlantı Hatası:", e);
+    } catch (err) {
+      console.error("Harem API Hatası:", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchHaremData();
+    fetchHaremPro();
+    const timer = setInterval(fetchHaremPro, 10000);
+    return () => clearInterval(timer);
   }, []);
+
+  const filteredData = data.filter(item => item.k.includes(search.toUpperCase()));
+
+  const renderItem = ({ item }) => (
+    <View style={styles.row}>
+      <View style={styles.cellLeft}>
+        <View style={[styles.dot, { backgroundColor: item.k.includes('TRY') ? COLORS.green : COLORS.gold }]} />
+        <View>
+          <Text style={styles.symbolName}>{item.k.replace('TRY', '')}</Text>
+          <Text style={styles.subText}>Harem Pro</Text>
+        </View>
+      </View>
+      <View style={styles.cellRight}>
+        <Text style={styles.priceText}>{item.s} ₺</Text>
+        <Text style={[styles.changeText, { color: item.y >= 0 ? COLORS.green : COLORS.red }]}>
+          {item.y >= 0 ? '▲' : '▼'} %{Math.abs(item.y).toFixed(2)}
+        </Text>
+      </View>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Harem Pro</Text>
-        <Text style={styles.subTitle}>Host: mobil.haremaltin.com</Text>
+        <Text style={styles.logo}>PİYASA EKRANI</Text>
+        <View style={styles.timeBadge}>
+          <Text style={styles.timeText}>{new Date().toLocaleTimeString('tr-TR')}</Text>
+        </View>
       </View>
 
-      {loading ? (
-        <ActivityIndicator color={COLORS.primary} size="large" style={{marginTop: 50}} />
+      <TextInput 
+        style={styles.searchBox} 
+        placeholder="Sembol filtrele..." 
+        placeholderTextColor={COLORS.dim}
+        onChangeText={setSearch}
+      />
+
+      {loading && data.length === 0 ? (
+        <ActivityIndicator color={COLORS.gold} style={{ marginTop: 20 }} />
       ) : (
         <FlatList
-          data={data}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.symbol}>{item.id}</Text>
-              <View style={{alignItems: 'flex-end'}}>
-                <Text style={styles.price}>{item.price} ₺</Text>
-                <Text style={{color: item.isUp ? COLORS.up : COLORS.down, fontWeight: 'bold'}}>
-                  {item.isUp ? '▲' : '▼'} %{item.change}
-                </Text>
-              </View>
-            </View>
-          )}
-          contentContainerStyle={{padding: 20}}
+          data={filteredData}
+          keyExtractor={item => item.k}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingBottom: 100 }}
         />
       )}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>System v4.4 • By dersev Enigma</Text>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { padding: 25 },
-  headerTitle: { fontSize: 34, fontWeight: 'bold', color: COLORS.text },
-  subTitle: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },
-  card: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    backgroundColor: COLORS.card, 
-    padding: 20, 
-    borderRadius: 20, 
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#333'
-  },
-  symbol: { color: COLORS.text, fontSize: 18, fontWeight: 'bold' },
-  price: { color: COLORS.text, fontSize: 20, fontWeight: '800' }
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  logo: { color: COLORS.gold, fontWeight: '800', fontSize: 18 },
+  timeBadge: { backgroundColor: 'rgba(34,197,94,0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  timeText: { color: COLORS.green, fontFamily: 'Courier', fontSize: 12 },
+  searchBox: { backgroundColor: '#000', color: '#fff', margin: 10, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border },
+  row: { flexDirection: 'row', justifyContent: 'space-between', padding: 15, borderBottomWidth: 1, borderBottomColor: COLORS.border, alignItems: 'center' },
+  cellLeft: { flexDirection: 'row', alignItems: 'center' },
+  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 12 },
+  symbolName: { color: COLORS.text, fontWeight: '700', fontSize: 16 },
+  subText: { color: COLORS.dim, fontSize: 10, marginTop: 2 },
+  cellRight: { alignItems: 'flex-end' },
+  priceText: { color: '#fff', fontSize: 18, fontWeight: 'bold', letterSpacing: -0.5 },
+  changeText: { fontSize: 12, fontWeight: '700', marginTop: 4 },
+  footer: { position: 'absolute', bottom: 0, width: '100%', padding: 10, backgroundColor: '#000', alignItems: 'center' },
+  footerText: { color: COLORS.dim, fontSize: 10 }
 });
