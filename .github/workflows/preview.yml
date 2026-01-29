@@ -1,4 +1,4 @@
-name: Expo Preview SDK 54 iOS Stable
+name: Expo Preview SDK 54 Final Fix
 
 on:
   push:
@@ -13,18 +13,15 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK
       - name: 🧹 Ön Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets
 
-      # 2. NODE KURULUMU
       - name: 🏗 Node.js Kurulumu
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 3. PACKAGE.JSON: Tüm modüller SDK 54 uyumlu
-      - name: 📄 package.json Oluştur
+      - name: 📄 package.json Oluştur (SDK 54)
         run: |
           echo '{
             "name": "eminxtream",
@@ -60,19 +57,7 @@ jobs:
             "private": true
           }' > package.json
 
-      # 4. BABEL CONFIG
-      - name: 📄 babel.config.js Oluştur
-        run: |
-          echo "module.exports = function(api) {
-            api.cache(true);
-            return {
-              presets: ['babel-preset-expo'],
-              plugins: ['react-native-reanimated/plugin'],
-            };
-          };" > babel.config.js
-
-      # 5. APP.JSON: iOS HTTP (ATS) İzni Eklendi
-      - name: 📄 app.json Oluştur
+      - name: 📄 app.json Oluştur (iOS HTTP Fix)
         run: |
           echo '{
             "expo": {
@@ -80,44 +65,25 @@ jobs:
               "slug": "eminxtream",
               "owner": "eminxtream",
               "version": "1.0.0",
-              "orientation": "portrait",
               "icon": "./assets/icon.png",
-              "userInterfaceStyle": "dark",
-              "splash": {
-                "image": "./assets/splash.png",
-                "resizeMode": "contain",
-                "backgroundColor": "#050710"
-              },
               "ios": {
-                "supportsTablet": true,
                 "bundleIdentifier": "com.eminxtream.app",
                 "infoPlist": {
-                  "NSAppTransportSecurity": {
-                    "NSAllowsArbitraryLoads": true
-                  }
+                  "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
                 }
               },
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
-              "runtimeVersion": { "policy": "appVersion" },
-              "extra": {
-                "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" }
-              }
+              "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
             }
           }' > app.json
 
-      # 6. ASSETS
-      - name: 🖼 Sahte Varlıklar Oluştur
+      - name: 🖼 Assets Oluştur
         run: |
           mkdir -p assets
           touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
 
-      # 7. KURULUM VE GÖNDERİM
-      - name: 📦 Paket Kurulumu
+      - name: 📦 Kurulum ve Gönderim
         run: |
           npm install -g eas-cli
           npm install --legacy-peer-deps
-
-      - name: 🚀 Expo EAS Update (SDK 54)
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "iOS Video and HTTP Fix" --non-interactive
+          eas update --branch preview --message "SDK 54 & iOS Fix" --non-interactive
