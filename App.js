@@ -18,7 +18,7 @@ function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!url || !username || !password) return Alert.alert('Hata', 'Bilgileri girin.');
+    if (!url || !username || !password) return Alert.alert('Hata', 'Tüm alanları doldurun.');
     setLoading(true);
     let cleanUrl = url.trim();
     if (!cleanUrl.startsWith('http')) cleanUrl = `http://${cleanUrl}`;
@@ -29,16 +29,17 @@ function LoginScreen({ navigation }) {
         await AsyncStorage.setItem('user_creds', JSON.stringify({ url: cleanUrl, username, password }));
         navigation.replace('Dashboard');
       } else { Alert.alert('Hata', 'Giriş başarısız.'); }
-    } catch (e) { Alert.alert('Hata', 'Bağlantı sorunu.'); }
+    } catch (e) { Alert.alert('Hata', 'Sunucu bağlantısı sağlanamadı.'); }
     finally { setLoading(false); }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <Ionicons name="tv-outline" size={80} color={COLORS.primary} style={{alignSelf: 'center', marginBottom: 20}} />
       <Text style={styles.title}>EminXtream Pro</Text>
       <TextInput style={styles.input} placeholder="URL" placeholderTextColor={COLORS.gray} onChangeText={setUrl} value={url} autoCapitalize="none" />
-      <TextInput style={styles.input} placeholder="User" placeholderTextColor={COLORS.gray} onChangeText={setUsername} value={username} autoCapitalize="none" />
-      <TextInput style={styles.input} placeholder="Pass" placeholderTextColor={COLORS.gray} onChangeText={setPassword} value={password} secureTextEntry />
+      <TextInput style={styles.input} placeholder="Kullanıcı" placeholderTextColor={COLORS.gray} onChangeText={setUsername} value={username} autoCapitalize="none" />
+      <TextInput style={styles.input} placeholder="Şifre" placeholderTextColor={COLORS.gray} onChangeText={setPassword} value={password} secureTextEntry />
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
         <Text style={styles.btnText}>{loading ? 'BAĞLANILIYOR...' : 'GİRİŞ YAP'}</Text>
       </TouchableOpacity>
@@ -49,16 +50,17 @@ function LoginScreen({ navigation }) {
 // --- DASHBOARD ---
 function Dashboard({ navigation }) {
   const menu = [
-    { id: 'live', name: 'CANLI TV', icon: 'tv', action: 'get_live_streams' },
-    { id: 'movie', name: 'FİLMLER', icon: 'film', action: 'get_vod_streams' },
-    { id: 'series', name: 'DİZİLER', icon: 'library', action: 'get_series' }
+    { id: 'live', name: 'CANLI TV', icon: 'radio-outline', action: 'get_live_streams' },
+    { id: 'movie', name: 'FİLMLER', icon: 'film-outline', action: 'get_vod_streams' },
+    { id: 'series', name: 'DİZİLER', icon: 'library-outline', action: 'get_series' }
   ];
   return (
     <SafeAreaView style={styles.container}>
+      <Text style={styles.sectionTitle}>İçerik Türü Seçin</Text>
       <View style={styles.grid}>
         {menu.map(item => (
           <TouchableOpacity key={item.id} style={styles.menuCard} onPress={() => navigation.navigate('List', { type: item.id, action: item.action, title: item.name })}>
-            <Ionicons name={item.icon} size={40} color={COLORS.primary} />
+            <Ionicons name={item.icon} size={45} color={COLORS.primary} />
             <Text style={styles.menuText}>{item.name}</Text>
           </TouchableOpacity>
         ))}
@@ -109,7 +111,7 @@ function ListScreen({ route, navigation }) {
   );
 }
 
-// --- SERIES INFO (SEASONS & EPISODES) ---
+// --- SERIES INFO ---
 function SeriesInfoScreen({ route, navigation }) {
   const { item } = route.params;
   const [info, setInfo] = useState(null);
@@ -137,7 +139,7 @@ function SeriesInfoScreen({ route, navigation }) {
             {info.episodes[season].map(ep => (
               <TouchableOpacity key={ep.id} style={styles.listCard} onPress={() => navigation.navigate('Player', { item: ep, type: 'series' })}>
                 <Text style={styles.listText}>Bölüm {ep.episode_num}: {ep.title}</Text>
-                <Ionicons name="play-circle" size={24} color={COLORS.primary} />
+                <Ionicons name="play-circle-outline" size={24} color={COLORS.primary} />
               </TouchableOpacity>
             ))}
           </View>
@@ -147,7 +149,7 @@ function SeriesInfoScreen({ route, navigation }) {
   );
 }
 
-// --- PLAYER ---
+// --- PLAYER (HLS & Multi-Format) ---
 function PlayerScreen({ route, navigation }) {
   useKeepAwake();
   const { item, type } = route.params;
@@ -160,8 +162,10 @@ function PlayerScreen({ route, navigation }) {
       const id = item.stream_id || item.id;
       let path = type === 'series' ? 'series' : (type === 'live' ? 'live' : 'movie');
       
-      // iPHONE FIX: Canlı yayında m3u8 zorla, dizi/filmde orijinal uzantıyı kullan
-      const ext = type === 'live' && Platform.OS === 'ios' ? 'm3u8' : (item.container_extension || 'mp4');
+      // iPHONE FIX: Canlıda m3u8, VOD'da orijinal format
+      let ext = item.container_extension || 'mp4';
+      if (type === 'live' && Platform.OS === 'ios') ext = 'm3u8';
+      
       setUrl(`${creds.url}/${path}/${creds.username}/${creds.password}/${id}.${ext}`);
     })();
   }, []);
@@ -172,12 +176,11 @@ function PlayerScreen({ route, navigation }) {
       {url && !error ? (
         <Video source={{ uri: url }} style={{ width: '100%', height: 300 }} useNativeControls resizeMode={ResizeMode.CONTAIN} shouldPlay onError={() => setError(true)} />
       ) : <ActivityIndicator size="large" color={COLORS.primary} />}
-      {error && <Text style={{color: 'red', textAlign: 'center'}}>Format Hatası: iPhone bu yayını oynatamıyor.</Text>}
+      {error && <Text style={{color: 'red', textAlign: 'center'}}>Format Hatası: Bu içerik iPhone motoruyla uyumsuz.</Text>}
     </View>
   );
 }
 
-// --- MAIN APP ---
 export default function App() {
   return (
     <NavigationContainer>
@@ -198,13 +201,14 @@ const styles = StyleSheet.create({
   input: { backgroundColor: COLORS.card, color: '#fff', padding: 15, borderRadius: 10, marginBottom: 10 },
   button: { backgroundColor: COLORS.accent, padding: 15, borderRadius: 10, alignItems: 'center' },
   btnText: { color: '#fff', fontWeight: 'bold' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 50 },
-  menuCard: { backgroundColor: COLORS.card, width: '48%', padding: 20, borderRadius: 15, alignItems: 'center', marginBottom: 15 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 30 },
+  menuCard: { backgroundColor: COLORS.card, width: '48%', padding: 25, borderRadius: 15, alignItems: 'center', marginBottom: 15 },
   menuText: { color: '#fff', marginTop: 10, fontWeight: 'bold' },
+  sectionTitle: { color: COLORS.primary, fontSize: 24, fontWeight: 'bold' },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginLeft: 15 },
-  listCard: { flexDirection: 'row', backgroundColor: COLORS.card, padding: 12, borderRadius: 15, marginBottom: 10, alignItems: 'center' },
-  listIcon: { width: 50, height: 50, borderRadius: 10, marginRight: 15 },
+  listCard: { flexDirection: 'row', backgroundColor: COLORS.card, padding: 12, borderRadius: 15, marginBottom: 8, alignItems: 'center' },
+  listIcon: { width: 50, height: 50, borderRadius: 8, marginRight: 15 },
   listText: { color: '#fff', flex: 1 },
   closeBtn: { position: 'absolute', top: 40, right: 20, zIndex: 10 }
 });
