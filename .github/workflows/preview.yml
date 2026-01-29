@@ -1,4 +1,4 @@
-name: Expo Preview SDK 54 Full Fix
+name: Expo Preview SDK 54 Stable
 
 on:
   push:
@@ -13,17 +13,17 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK: Eski sürümlerle çakışmayı önlemek için her şeyi sıfırlıyoruz
+      # 1. TEMİZLİK
       - name: 🧹 Ön Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets
 
-      # 2. NODE KURULUMU: Yeni SDK'lar için Node 20+ gereklidir
+      # 2. NODE KURULUMU
       - name: 🏗 Node.js Kurulumu
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 3. PACKAGE.JSON: SDK 54 için tüm bağımlılıklar ve React 19 uyumu
+      # 3. PACKAGE.JSON: Sürümler daha kararlı hale getirildi
       - name: 📄 package.json Oluştur (SDK 54)
         run: |
           echo '{
@@ -46,16 +46,15 @@ jobs:
               "expo-constants": "~19.0.0",
               "expo-font": "~15.0.0",
               "expo-updates": "~0.28.0",
-              "expo-modules-core": "~2.3.0",
               "@expo/vector-icons": "~14.0.0",
               "@react-native-async-storage/async-storage": "2.1.0",
               "@react-navigation/native": "^7.0.0",
               "@react-navigation/stack": "^7.0.0",
               "@react-navigation/bottom-tabs": "^7.0.0",
-              "react-native-safe-area-context": "5.0.0",
-              "react-native-screens": "~5.0.0",
-              "react-native-gesture-handler": "~2.22.0",
-              "react-native-reanimated": "~4.0.0"
+              "react-native-safe-area-context": "4.12.0",
+              "react-native-screens": "~4.0.0",
+              "react-native-gesture-handler": "~2.20.2",
+              "react-native-reanimated": "~3.16.1"
             },
             "devDependencies": {
               "@babel/core": "^7.25.0",
@@ -64,7 +63,7 @@ jobs:
             "private": true
           }' > package.json
 
-      # 4. BABEL CONFIG: Modern derleme ayarları
+      # 4. BABEL CONFIG
       - name: 📄 babel.config.js Oluştur
         run: |
           echo "module.exports = function(api) {
@@ -75,7 +74,7 @@ jobs:
             };
           };" > babel.config.js
 
-      # 5. APP.JSON: SDK 54 uyumlu ayarlar ve Project ID
+      # 5. APP.JSON
       - name: 📄 app.json Oluştur
         run: |
           echo '{
@@ -92,8 +91,6 @@ jobs:
                 "resizeMode": "contain",
                 "backgroundColor": "#050710"
               },
-              "ios": { "supportsTablet": true, "bundleIdentifier": "com.eminxtream.app" },
-              "android": { "package": "com.eminxtream.app" },
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
               "runtimeVersion": { "policy": "appVersion" },
               "extra": {
@@ -102,19 +99,19 @@ jobs:
             }
           }' > app.json
 
-      # 6. ASSETS: Eksik resimlerden dolayı build çökmesini engeller
+      # 6. ASSETS
       - name: 🖼 Sahte Varlıklar (Assets) Oluştur
         run: |
           mkdir -p assets
           touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
 
-      # 7. KURULUM VE GÖNDERİM
-      - name: 📦 CLI ve Paket Kurulumu
+      # 7. KURULUM VE GÖNDERİM: --legacy-peer-deps eklendi
+      - name: 📦 Paket Kurulumu
         run: |
           npm install -g eas-cli
-          npm install
+          npm install --legacy-peer-deps
 
       - name: 🚀 Expo EAS Update (SDK 54)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "Upgrade to SDK 54" --non-interactive
+        run: eas update --branch preview --message "Fix Dependency Tree" --non-interactive
