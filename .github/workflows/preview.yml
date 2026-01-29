@@ -8,15 +8,15 @@ on:
 jobs:
   publish-preview:
     runs-on: ubuntu-latest
-    
-    # Tüm işlemler eminxtream klasöründe yapılacak
-    defaults:
-      run:
-        working-directory: ./eminxtream
+
+    # working-directory SİLİNDİ, ana dizinde çalışacak.
 
     steps:
       - name: 🏗 Setup Repo
         uses: actions/checkout@v4
+
+      - name: 🔍 Dosyaları Kontrol Et (Debug)
+        run: ls -la # Bu komut hangi dosyaların nerede olduğunu loglarda gösterecek
 
       - name: 🏗 Setup Node
         uses: actions/setup-node@v4
@@ -27,17 +27,18 @@ jobs:
         run: npm install -g eas-cli
 
       - name: 📦 Install Dependencies
+        # Eğer package.json ana dizindeyse bu çalışır
         run: npm install
 
-      # 👇 YENİ EKLENEN ADIM: EAS Konfigürasyonu Oluşturuluyor
       - name: ⚙️ Setup EAS Config
+        # eas.json dosyasını elle oluşturuyoruz
         run: |
-          echo '{ "build": { "preview": { "distribution": "internal" } }, "update": { "preview": { "channel": "preview" } } }' > eas.json
+          echo '{ "build": { "preview": { "distribution": "internal" } }, "submit": { "production": {} }, "update": { "preview": { "channel": "preview" } } }' > eas.json
 
-      # 👇 YENİ EKLENEN ADIM: Proje ID'sini Zorla Tanıtıyoruz
       - name: 🔗 Link Project
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        # Senin ID'ni buraya tekrar ekledim
         run: eas init --id 7b7866e2-688e-4e87-af97-88213b2670d4 --non-interactive
 
       - name: 🚀 Publish to Expo
