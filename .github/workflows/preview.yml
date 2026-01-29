@@ -1,4 +1,4 @@
-name: EminXtream SDK 54 Final Fix
+name: EminXtream SDK 54 Full Update
 
 on:
   push:
@@ -57,7 +57,7 @@ jobs:
             "private": true
           }' > package.json
 
-      - name: 📄 app.json (Kritik SDK 54 & HTTP İzni)
+      - name: 📄 app.json (SDK 54 & iOS HTTP Fix)
         run: |
           echo '{
             "expo": {
@@ -72,6 +72,7 @@ jobs:
                 }
               },
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
+              "runtimeVersion": { "policy": "appVersion" },
               "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
             }
           }' > app.json
@@ -85,4 +86,4 @@ jobs:
       - name: 🚀 Gönder
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "SDK 54 & iOS Fix" --non-interactive
+        run: eas update --branch preview --message "SDK 54 & MultiFormat Fix" --non-interactive
