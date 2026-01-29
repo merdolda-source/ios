@@ -1,4 +1,4 @@
-name: Expo Preview SDK 54 Module Fix
+name: Expo Preview SDK 54 iOS Stable
 
 on:
   push:
@@ -23,18 +23,13 @@ jobs:
         with:
           node-version: 20
 
-      # 3. PACKAGE.JSON: 'fs-extra' ve 'expo-modules-core' açıkça eklendi
-      - name: 📄 package.json Oluştur (SDK 54)
+      # 3. PACKAGE.JSON: Tüm modüller SDK 54 uyumlu
+      - name: 📄 package.json Oluştur
         run: |
           echo '{
             "name": "eminxtream",
             "version": "1.0.0",
             "main": "node_modules/expo/AppEntry.js",
-            "scripts": {
-              "start": "expo start",
-              "android": "expo start --android",
-              "ios": "expo start --ios"
-            },
             "dependencies": {
               "expo": "~54.0.0",
               "react": "19.0.0",
@@ -76,7 +71,7 @@ jobs:
             };
           };" > babel.config.js
 
-      # 5. APP.JSON
+      # 5. APP.JSON: iOS HTTP (ATS) İzni Eklendi
       - name: 📄 app.json Oluştur
         run: |
           echo '{
@@ -93,6 +88,15 @@ jobs:
                 "resizeMode": "contain",
                 "backgroundColor": "#050710"
               },
+              "ios": {
+                "supportsTablet": true,
+                "bundleIdentifier": "com.eminxtream.app",
+                "infoPlist": {
+                  "NSAppTransportSecurity": {
+                    "NSAllowsArbitraryLoads": true
+                  }
+                }
+              },
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
               "runtimeVersion": { "policy": "appVersion" },
               "extra": {
@@ -102,7 +106,7 @@ jobs:
           }' > app.json
 
       # 6. ASSETS
-      - name: 🖼 Sahte Varlıklar (Assets) Oluştur
+      - name: 🖼 Sahte Varlıklar Oluştur
         run: |
           mkdir -p assets
           touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
@@ -116,4 +120,4 @@ jobs:
       - name: 🚀 Expo EAS Update (SDK 54)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "Fixed fs-extra missing module" --non-interactive
+        run: eas update --branch preview --message "iOS Video and HTTP Fix" --non-interactive
