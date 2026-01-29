@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, FlatList, Alert, Image, ActivityIndicator, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, FlatList, Alert, Image, ActivityIndicator, Platform, ScrollView } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -8,18 +8,27 @@ import { Video, ResizeMode } from 'expo-av';
 import { useKeepAwake } from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 
-// --- RENK PALETİ ---
+// --- TEMA VE RENKLER ---
 const COLORS = {
   bg: '#050710',
   card: '#111320',
   primary: '#00E5FF',
-  purple: '#7C4DFF',
+  accent: '#7C4DFF',
   text: '#FFFFFF',
-  gray: '#888'
+  gray: '#A0A0A0',
+  error: '#FF3D00'
 };
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// --- YARDIMCI FONKSİYON: URL TEMİZLEME ---
+const getCleanUrl = (url) => {
+  let clean = url.trim();
+  if (!clean.startsWith('http')) clean = `http://${clean}`;
+  if (clean.endsWith('/')) clean = clean.slice(0, -1);
+  return clean;
+};
 
 // --- 1. LOGIN SCREEN ---
 function LoginScreen({ navigation }) {
@@ -29,36 +38,29 @@ function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    checkLogin();
+    (async () => {
+      const saved = await AsyncStorage.getItem('user_creds');
+      if (saved) navigation.replace('Main');
+    })();
   }, []);
 
-  const checkLogin = async () => {
-    const savedUser = await AsyncStorage.getItem('user_creds');
-    if (savedUser) navigation.replace('Main');
-  };
-
   const handleLogin = async () => {
-    if (!url || !username || !password) return Alert.alert('Hata', 'Tüm alanları doldurun.');
+    if (!url || !username || !password) return Alert.alert('Hata', 'Lütfen tüm alanları doldurun.');
     setLoading(true);
-
-    let cleanUrl = url.trim();
-    if (!cleanUrl.startsWith('http')) cleanUrl = `http://${cleanUrl}`;
-    if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
-
-    const api = `${cleanUrl}/player_api.php?username=${username}&password=${password}`;
+    const cleanUrl = getCleanUrl(url);
 
     try {
-      const response = await fetch(api);
+      const response = await fetch(`${cleanUrl}/player_api.php?username=${username}&password=${password}`);
       const data = await response.json();
 
       if (data.user_info && data.user_info.auth === 1) {
         await AsyncStorage.setItem('user_creds', JSON.stringify({ url: cleanUrl, username, password }));
         navigation.replace('Main');
       } else {
-        Alert.alert('Hata', 'Giriş başarısız. Bilgileri kontrol edin.');
+        Alert.alert('Giriş Başarısız', 'Kullanıcı adı veya şifre hatalı.');
       }
     } catch (e) {
-      Alert.alert('Hata', 'Sunucuya bağlanılamadı.');
+      Alert.alert('Bağlantı Hatası', 'Sunucuya ulaşılamadı. URL\'yi kontrol edin.');
     } finally {
       setLoading(false);
     }
@@ -66,11 +68,11 @@ function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <Ionicons name="play-circle" size={80} color={COLORS.primary} style={{ alignSelf: 'center', marginBottom: 20 }} />
       <Text style={styles.title}>EminXtream Pro</Text>
-      <TextInput style={styles.input} placeholder="Sunucu URL" placeholderTextColor="#666" onChangeText={setUrl} value={url} autoCapitalize="none" />
-      <TextInput style={styles.input} placeholder="Kullanıcı Adı" placeholderTextColor="#666" onChangeText={setUsername} value={username} autoCapitalize="none" />
-      <TextInput style={styles.input} placeholder="Şifre" placeholderTextColor="#666" onChangeText={setPassword} value={password} secureTextEntry />
-      
+      <TextInput style={styles.input} placeholder="Sunucu URL (http://...)" placeholderTextColor={COLORS.gray} onChangeText={setUrl} value={url} autoCapitalize="none" />
+      <TextInput style={styles.input} placeholder="Kullanıcı Adı" placeholderTextColor={COLORS.gray} onChangeText={setUsername} value={username} autoCapitalize="none" />
+      <TextInput style={styles.input} placeholder="Şifre" placeholderTextColor={COLORS.gray} onChangeText={setPassword} value={password} secureTextEntry />
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
         {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.btnText}>GİRİŞ YAP</Text>}
       </TouchableOpacity>
@@ -78,137 +80,139 @@ function LoginScreen({ navigation }) {
   );
 }
 
-// --- 2. LIVE TV SCREEN ---
-function LiveTVScreen({ navigation }) {
-  const [channels, setChannels] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchChannels();
-  }, []);
-
-  const fetchChannels = async () => {
-    try {
-      const credsData = await AsyncStorage.getItem('user_creds');
-      if (!credsData) return;
-      const creds = JSON.parse(credsData);
-      
-      const api = `${creds.url}/player_api.php?username=${creds.username}&password=${creds.password}&action=get_live_streams`;
-      
-      const response = await fetch(api);
-      const data = await response.json();
-      setChannels(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.log("Kanal çekme hatası:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const renderItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.card} 
-      onPress={() => navigation.navigate('Player', { stream: item, type: 'live' })}
-    >
-      <Image 
-        source={{ uri: item.stream_icon || 'https://via.placeholder.com/50' }} 
-        style={styles.icon} 
-        resizeMode="contain"
-      />
-      <View style={{flex: 1}}>
-        <Text style={styles.cardText} numberOfLines={1}>{item.name}</Text>
-        <Text style={{color: COLORS.gray, fontSize: 12}}>ID: {item.stream_id}</Text>
-      </View>
-      <Ionicons name="play-circle" size={24} color={COLORS.primary} />
-    </TouchableOpacity>
-  );
+// --- 2. DASHBOARD (ANA MENÜ) ---
+function Dashboard({ navigation }) {
+  const menuItems = [
+    { id: 'live', name: 'CANLI TV', icon: 'tv', action: 'get_live_streams' },
+    { id: 'movie', name: 'FİLMLER', icon: 'film', action: 'get_vod_streams' },
+    { id: 'series', name: 'DİZİLER', icon: 'library', action: 'get_series' }
+  ];
 
   return (
     <View style={styles.container}>
-      {loading ? <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}} /> :
-      <FlatList 
-        data={channels} 
-        keyExtractor={(item) => item.stream_id.toString()} 
-        renderItem={renderItem}
-        initialNumToRender={15}
-      />}
+      <Text style={styles.sectionTitle}>Hoş Geldiniz</Text>
+      <View style={styles.grid}>
+        {menuItems.map(item => (
+          <TouchableOpacity key={item.id} style={styles.menuCard} onPress={() => navigation.navigate('ContentList', { type: item.id, action: item.action, title: item.name })}>
+            <Ionicons name={item.icon} size={40} color={COLORS.primary} />
+            <Text style={styles.menuText}>{item.name}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await AsyncStorage.clear(); navigation.replace('Login'); }}>
+        <Text style={{ color: COLORS.error }}>Çıkış Yap</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
-// --- 3. PLAYER SCREEN ---
-function PlayerScreen({ route, navigation }) {
-  useKeepAwake();
-  const { stream, type } = route.params;
-  const [url, setUrl] = useState(null);
-  const [error, setError] = useState(false);
-  const video = React.useRef(null);
+// --- 3. İÇERİK LİSTESİ ---
+function ContentList({ route, navigation }) {
+  const { type, action, title } = route.params;
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    prepareUrl();
+    (async () => {
+      const creds = JSON.parse(await AsyncStorage.getItem('user_creds'));
+      try {
+        const response = await fetch(`${creds.url}/player_api.php?username=${creds.username}&password=${creds.password}&action=${action}`);
+        const json = await response.json();
+        setData(Array.isArray(json) ? json : []);
+      } catch (e) { console.log(e); } finally { setLoading(false); }
+    })();
   }, []);
 
-  const prepareUrl = async () => {
-    const credsData = await AsyncStorage.getItem('user_creds');
-    const creds = JSON.parse(credsData);
-    
-    // iOS için m3u8 formatı genellikle daha kararlıdır
-    const ext = Platform.OS === 'ios' ? 'm3u8' : 'ts';
-    const path = type === 'live' ? 'live' : 'movie';
-    const streamUrl = `${creds.url}/${path}/${creds.username}/${creds.password}/${stream.stream_id}.${ext}`;
-    
-    setUrl(streamUrl);
-  };
+  return (
+    <View style={styles.container}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={28} color="white" /></TouchableOpacity>
+        <Text style={styles.headerTitle}>{title}</Text>
+      </View>
+      {loading ? <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 50 }} /> :
+        <FlatList
+          data={data}
+          keyExtractor={(item) => (item.stream_id || item.series_id).toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.listCard} onPress={() => navigation.navigate('Player', { item, type })}>
+              <Image source={{ uri: item.stream_icon || item.last_modified_icon || 'https://via.placeholder.com/100' }} style={styles.listIcon} />
+              <Text style={styles.listText} numberOfLines={2}>{item.name}</Text>
+              <Ionicons name="play-circle-outline" size={30} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
+        />
+      }
+    </View>
+  );
+}
+
+// --- 4. PLAYER SCREEN (İPHONE OYNATMA ÇÖZÜMÜ) ---
+function PlayerScreen({ route, navigation }) {
+  useKeepAwake();
+  const { item, type } = route.params;
+  const [url, setUrl] = useState(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const creds = JSON.parse(await AsyncStorage.getItem('user_creds'));
+      const id = item.stream_id || item.series_id;
+      
+      // iPHONE ÇÖZÜMÜ: Sadece uzantı değil, output=m3u8 parametresi eklenir.
+      // Xtream server'larda HLS (m3u8) iPhone için en güvenli yoldur.
+      let streamUrl = "";
+      if (Platform.OS === 'ios') {
+        streamUrl = `${creds.url}/live/${creds.username}/${creds.password}/${id}.m3u8`;
+      } else {
+        streamUrl = `${creds.url}/live/${creds.username}/${creds.password}/${id}.ts`;
+      }
+      
+      // Eğer film ise formatı mp4 veya mkv olarak ayarla
+      if (type === 'movie') {
+        streamUrl = `${creds.url}/movie/${creds.username}/${creds.password}/${id}.mp4`;
+      }
+
+      console.log("Oynatılan URL:", streamUrl);
+      setUrl(streamUrl);
+    })();
+  }, []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'center' }}>
-      <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
-        <Ionicons name="close-circle" size={40} color="white" />
+    <View style={styles.playerContainer}>
+      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <Ionicons name="close" size={35} color="white" />
       </TouchableOpacity>
-      
+
       {url ? (
         <Video
-          ref={video}
-          style={{ width: '100%', height: 280 }}
           source={{ uri: url }}
+          style={styles.video}
           useNativeControls
           resizeMode={ResizeMode.CONTAIN}
           shouldPlay
-          onError={(e) => {
-            console.log("Video Hatası:", e);
-            setError(true);
-          }}
+          onError={(e) => { console.log(e); setError(true); }}
         />
-      ) : <ActivityIndicator color={COLORS.primary} />}
+      ) : <ActivityIndicator size="large" color={COLORS.primary} />}
 
       {error && (
-        <Text style={{color: 'red', textAlign: 'center', marginTop: 10}}>
-          Yayın şu an iPhone'da oynatılamıyor. Format uyumsuz olabilir.
-        </Text>
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>Yayın iPhone formatıyla uyumsuz (HLS/M3U8 desteği yok).</Text>
+          <Text style={{color: COLORS.gray, marginTop: 10, textAlign: 'center'}}>Lütfen sunucu ayarlarınızdan HLS çıkışını aktif edin.</Text>
+        </View>
       )}
-      
-      <Text style={{color:'white', textAlign:'center', marginTop: 20, fontSize: 18, fontWeight: 'bold'}}>
-        {stream.name}
-      </Text>
+      <Text style={styles.videoTitle}>{item.name}</Text>
     </View>
   );
 }
 
-// --- NAVIGASYON ---
-function MainTabs() {
+// --- NAVİGASYON YAPISI ---
+function MainStack() {
   return (
-    <Tab.Navigator
-      screenOptions={{
-        tabBarStyle: { backgroundColor: COLORS.card, borderTopWidth: 0 },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.gray,
-        headerStyle: { backgroundColor: COLORS.bg },
-        headerTintColor: COLORS.text,
-      }}
-    >
-      <Tab.Screen name="Canlı TV" component={LiveTVScreen} options={{ tabBarIcon: ({color}) => <Ionicons name="tv" size={24} color={color} /> }} />
-      <Tab.Screen name="Ayarlar" component={LoginScreen} options={{ tabBarIcon: ({color}) => <Ionicons name="settings" size={24} color={color} /> }} /> 
-    </Tab.Navigator>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Dashboard" component={Dashboard} />
+      <Stack.Screen name="ContentList" component={ContentList} />
+      <Stack.Screen name="Player" component={PlayerScreen} />
+    </Stack.Navigator>
   );
 }
 
@@ -217,21 +221,33 @@ export default function App() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Main" component={MainTabs} />
-        <Stack.Screen name="Player" component={PlayerScreen} />
+        <Stack.Screen name="Main" component={MainStack} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
+// --- STİLLER ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, padding: 15, paddingTop: 40 },
-  title: { fontSize: 32, fontWeight: 'bold', color: COLORS.primary, marginBottom: 30, textAlign: 'center' },
-  input: { backgroundColor: COLORS.card, color: 'white', padding: 15, borderRadius: 12, marginBottom: 15, borderWidth: 1, borderColor: '#222' },
-  button: { backgroundColor: COLORS.purple, padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 10, shadowColor: COLORS.purple, shadowOpacity: 0.5, shadowRadius: 10 },
-  btnText: { color: 'white', fontWeight: 'bold', fontSize: 18 },
-  card: { flexDirection: 'row', backgroundColor: COLORS.card, padding: 12, marginBottom: 8, borderRadius: 12, alignItems: 'center' },
-  icon: { width: 50, height: 50, marginRight: 15, borderRadius: 8 },
-  cardText: { color: 'white', fontSize: 16, fontWeight: '500' },
-  closeBtn: { position: 'absolute', top: 50, right: 20, zIndex: 10 }
+  container: { flex: 1, backgroundColor: COLORS.bg, padding: 20, paddingTop: 60 },
+  playerContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+  title: { fontSize: 36, fontWeight: 'bold', color: COLORS.primary, textAlign: 'center', marginBottom: 40 },
+  input: { backgroundColor: COLORS.card, color: '#fff', padding: 18, borderRadius: 15, marginBottom: 15, fontSize: 16 },
+  button: { backgroundColor: COLORS.accent, padding: 18, borderRadius: 15, alignItems: 'center', shadowColor: COLORS.accent, shadowOpacity: 0.4, shadowRadius: 10 },
+  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 18 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 20 },
+  menuCard: { backgroundColor: COLORS.card, width: '48%', padding: 25, borderRadius: 20, alignItems: 'center', marginBottom: 15 },
+  menuText: { color: '#fff', marginTop: 15, fontWeight: '600', fontSize: 14 },
+  sectionTitle: { color: COLORS.primary, fontSize: 22, fontWeight: 'bold' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginLeft: 15 },
+  listCard: { flexDirection: 'row', backgroundColor: COLORS.card, padding: 12, borderRadius: 15, marginBottom: 10, alignItems: 'center' },
+  listIcon: { width: 60, height: 60, borderRadius: 10, marginRight: 15 },
+  listText: { color: '#fff', flex: 1, fontSize: 16, fontWeight: '500' },
+  video: { width: '100%', height: 300 },
+  videoTitle: { color: '#fff', textAlign: 'center', marginTop: 20, fontSize: 18, paddingHorizontal: 20 },
+  backBtn: { position: 'absolute', top: 50, right: 25, zIndex: 10 },
+  errorBox: { padding: 30, alignItems: 'center' },
+  errorText: { color: COLORS.error, textAlign: 'center', fontSize: 16, fontWeight: 'bold' },
+  logoutBtn: { marginTop: 'auto', alignSelf: 'center', padding: 10 }
 });
