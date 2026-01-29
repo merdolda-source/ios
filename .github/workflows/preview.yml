@@ -1,4 +1,4 @@
-name: Expo Preview SDK 54 Final Fix
+name: Expo Preview SDK 54 Stable Fix
 
 on:
   push:
@@ -57,6 +57,16 @@ jobs:
             "private": true
           }' > package.json
 
+      - name: 📄 babel.config.js Oluştur
+        run: |
+          echo "module.exports = function(api) {
+            api.cache(true);
+            return {
+              presets: ['babel-preset-expo'],
+              plugins: ['react-native-reanimated/plugin'],
+            };
+          };" > babel.config.js
+
       - name: 📄 app.json Oluştur (iOS HTTP Fix)
         run: |
           echo '{
@@ -65,25 +75,33 @@ jobs:
               "slug": "eminxtream",
               "owner": "eminxtream",
               "version": "1.0.0",
+              "orientation": "portrait",
               "icon": "./assets/icon.png",
+              "userInterfaceStyle": "dark",
               "ios": {
                 "bundleIdentifier": "com.eminxtream.app",
                 "infoPlist": {
                   "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
                 }
               },
-              "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
-              "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
+              "updates": { "url": "https://u.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
+              "extra": {
+                "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" }
+              }
             }
           }' > app.json
 
-      - name: 🖼 Assets Oluştur
+      - name: 🖼 Sahte Varlıklar Oluştur
         run: |
           mkdir -p assets
           touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
 
-      - name: 📦 Kurulum ve Gönderim
+      - name: 📦 Paket Kurulumu
         run: |
           npm install -g eas-cli
           npm install --legacy-peer-deps
-          eas update --branch preview --message "SDK 54 & iOS Fix" --non-interactive
+
+      - name: 🚀 Expo EAS Update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas update --branch preview --message "SDK 54 Authentication Fix" --non-interactive
