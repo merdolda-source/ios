@@ -13,7 +13,8 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      - name: 🧹 Temizlik (Hatalı Dosyaları Sil)
+      # ADIM 1: Temizlik (Çakışmaları önlemek için eski ayarları siliyoruz)
+      - name: 🧹 Temizlik ve Hazırlık
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json
 
       - name: 🏗 Node.js Kurulumu
@@ -21,8 +22,9 @@ jobs:
         with:
           node-version: 18
 
-      # 1. package.json OLUŞTUR (SDK 52 Uyumlu - Eksiksiz)
-      - name: 📄 Create package.json
+      # ADIM 2: package.json (SDK 52 - iPhone 11 Expo Go ile tam uyumlu)
+      # Gelecekteki sürüm hatalarını önlemek için en güncel sürümleri kullanıyoruz.
+      - name: 📄 Create package.json (SDK 52)
         run: |
           echo '{
             "name": "eminxtream",
@@ -55,7 +57,7 @@ jobs:
             "private": true
           }' > package.json
 
-      # 2. babel.config.js OLUŞTUR (HATAYI ÇÖZEN KISIM BURASI)
+      # ADIM 3: babel.config.js (Derleme hatalarını önlemek için şart)
       - name: 📄 Create babel.config.js
         run: |
           echo "module.exports = function(api) {
@@ -65,8 +67,8 @@ jobs:
             };
           };" > babel.config.js
 
-      # 3. app.json OLUŞTUR (Expo Ayarları)
-      - name: 📄 Create app.json
+      # ADIM 4: app.json (Proje ID'sini buraya gömüyoruz, böylece eas init hatası almıyoruz)
+      - name: 📄 Create app.json with Project ID
         run: |
           echo '{
             "expo": {
@@ -81,21 +83,9 @@ jobs:
                 "resizeMode": "contain",
                 "backgroundColor": "#ffffff"
               },
-              "assetBundlePatterns": [
-                "**/*"
-              ],
-              "ios": {
-                "supportsTablet": true
-              },
-              "android": {
-                "adaptiveIcon": {
-                  "foregroundImage": "./assets/adaptive-icon.png",
-                  "backgroundColor": "#ffffff"
-                }
-              },
-              "web": {
-                "favicon": "./assets/favicon.png"
-              },
+              "ios": { "supportsTablet": true },
+              "android": { "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#ffffff" } },
+              "web": { "favicon": "./assets/favicon.png" },
               "extra": {
                 "eas": {
                   "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4"
@@ -104,20 +94,29 @@ jobs:
             }
           }' > app.json
 
+      # ADIM 5: eas.json (Update kanalını manuel ayarlıyoruz)
+      - name: 📄 Create eas.json
+        run: |
+          echo '{
+            "build": {
+              "preview": { "distribution": "internal" },
+              "production": {}
+            },
+            "submit": { "production": {} },
+            "update": {
+              "preview": { "channel": "preview" }
+            }
+          }' > eas.json
+
       - name: 📦 EAS CLI Yükle
         run: npm install -g eas-cli
 
       - name: 📦 Bağımlılıkları Yükle
         run: npm install
 
-      # 4. Projeyi Tekrar Bağla (EAS)
-      - name: 🔗 Projeyi Eşleştir (Link)
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas init --id 7b7866e2-688e-4e87-af97-88213b2670d4 --non-interactive
-
-      # 5. Güncellemeyi Gönder
+      # ADIM 6: Güncellemeyi Gönder
+      # "eas init" komutunu kaldırdım çünkü ADIM 4'te ID'yi zaten verdik. Bu hata riskini sıfıra indirir.
       - name: 🚀 Expo'ya Gönder (Update)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch preview --message "Fixed Config Files" --non-interactive
+        run: eas update --branch preview --message "Auto Repair & Update" --non-interactive
