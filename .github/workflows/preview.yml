@@ -31,7 +31,7 @@ jobs:
           # İkonu İndir
           curl -L -o assets/icon.png "https://i.ibb.co/99mj6zkx/71cf52be-22d6-4382-8a4e-bb42ea43796e.png"
           
-          # Splash Ekranı Çiz (Mavi Tonlu - Yeni Tasarıma Uygun)
+          # Splash Ekranı Çiz (Mavi Tonlu - FinansCepte)
           convert -size 1242x2688 xc:"#F8F9FA" \
             -fill "#2563EB" -font DejaVu-Sans-Bold -gravity center -pointsize 80 -annotate 0 "FinansCepte" \
             assets/splash.png
@@ -39,7 +39,7 @@ jobs:
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 3. PACKAGE.JSON (Yeni kütüphaneler eklendi: lucide-react-native, react-native-svg)
+      # 3. PACKAGE.JSON (DÜZELTİLDİ: lucide-react-native versiyonu "*" yapıldı)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -52,7 +52,7 @@ jobs:
               "react": "18.2.0",
               "react-native": "0.73.0",
               "expo-status-bar": "~1.11.1",
-              "lucide-react-native": "^0.4.0",
+              "lucide-react-native": "*",
               "react-native-svg": "14.1.0",
               "react-native-safe-area-context": "4.8.2"
             },
@@ -480,4 +480,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "New Design: FinansCepte + CreatorApp24 API" --non-interactive
+          eas update --branch preview --message "New Design: FinansCepte Fixed" --non-interactive
