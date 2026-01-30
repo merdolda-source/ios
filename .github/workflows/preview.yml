@@ -1,4 +1,4 @@
-name: EminXtream Firebase Re-Enable
+name: EminXtream FINAL WORKING
 
 on:
   push:
@@ -13,57 +13,16 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK
+      # 1. TEMİZLİK: Her şeyi silip tertemiz başlıyoruz
       - name: 🧹 Derin Temizlik
-        run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js App.js GoogleService-Info.plist google-services.json
+        run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js App.js GoogleService-Info.plist
 
       - name: 🏗 Node.js Kurulumu (v20)
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 2. FIREBASE KİMLİK DOSYASI (iOS İçin ŞART)
-      # İlk mesajında verdiğin bilgileri buraya gömüyoruz.
-      - name: 📄 GoogleService-Info.plist Oluştur
-        run: |
-          cat > GoogleService-Info.plist <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>API_KEY</key>
-            <string>AIzaSyAlrmsDBxfxLgFXaWGem26zW4ow6MtuE6s</string>
-            <key>GCM_SENDER_ID</key>
-            <string>1049874203126</string>
-            <key>PLIST_VERSION</key>
-            <string>1</string>
-            <key>BUNDLE_ID</key>
-            <string>com.piyasapro.app</string>
-            <key>PROJECT_ID</key>
-            <string>piayasa</string>
-            <key>STORAGE_BUCKET</key>
-            <string>piayasa.firebasestorage.app</string>
-            <key>IS_ADS_ENABLED</key>
-            <false/>
-            <key>IS_ANALYTICS_ENABLED</key>
-            <false/>
-            <key>IS_APPINVITE_ENABLED</key>
-            <true/>
-            <key>IS_GCM_ENABLED</key>
-            <true/>
-            <key>IS_SIGNIN_ENABLED</key>
-            <true/>
-            <key>GOOGLE_APP_ID</key>
-            <string>1:1049874203126:ios:d23a155d59992ec68e07d7</string>
-          </dict>
-          </plist>
-          EOF
-
-      # Android için boş bir placeholder (Hata vermesin diye)
-      - name: 📄 google-services.json (Placeholder)
-        run: echo "{}" > google-services.json
-
-      # 3. PACKAGE.JSON (Firebase'i Geri Ekledik)
+      # 2. PACKAGE.JSON (SADECE ÇALIŞAN PARÇALAR - FIREBASE YOK)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -76,9 +35,7 @@ jobs:
               "react": "19.0.0",
               "react-native": "0.78.0",
               "expo-status-bar": "~2.1.0",
-              "fs-extra": "^11.2.0",
-              "@react-native-firebase/app": "21.6.1",
-              "@react-native-firebase/remote-config": "21.6.1"
+              "fs-extra": "^11.2.0"
             },
             "devDependencies": {
               "@babel/core": "^7.25.0",
@@ -88,7 +45,7 @@ jobs:
           }
           EOF
 
-      # 4. BABEL CONFIG (Çalışan Yapı)
+      # 3. BABEL CONFIG (Hata Engelleyici)
       - name: ⚙️ Babel Config Oluştur
         run: |
           cat > babel.config.js <<'EOF'
@@ -100,79 +57,55 @@ jobs:
           };
           EOF
 
-      # 5. METRO CONFIG (Firebase Uyumlu)
+      # 4. METRO CONFIG
       - name: ⚙️ Metro Config Oluştur
         run: |
           cat > metro.config.js <<'EOF'
           const { getDefaultConfig } = require('expo/metro-config');
           const config = getDefaultConfig(__dirname);
-          config.resolver.sourceExts.push('cjs');
           module.exports = config;
           EOF
 
-      # 6. APP.JS (Hem Firebase Hem Yedek Link)
+      # 5. APP.JS (DİREKT LİNK - EN SAĞLAM YÖNTEM)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
           import React, { useState, useEffect } from 'react';
           import { Text, View, FlatList, SafeAreaView, ActivityIndicator, StatusBar, TouchableOpacity } from 'react-native';
-          import remoteConfig from '@react-native-firebase/remote-config';
 
-          // YEDEK LİNK (Firebase çalışmazsa burası devreye girer)
-          const FALLBACK_URL = "https://imdatgel.site/harem/piyasa_cache.json";
+          // Link değişirse burayı güncelleyip tekrar eas update yaparsın (Firebase gerekmez)
+          const URL = "https://imdatgel.site/harem/piyasa_cache.json";
 
           export default function App() {
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
-            const [status, setStatus] = useState("Başlatılıyor...");
+            const [msg, setMsg] = useState("Veriler Yükleniyor...");
 
             const loadData = async () => {
               setLoading(true);
-              setStatus("Veriler güncelleniyor...");
-              
-              let targetUrl = FALLBACK_URL;
-
+              setMsg("Bağlanıyor...");
               try {
-                // 1. FIREBASE DENEMESİ
-                try {
-                  await remoteConfig().setConfigSettings({ minimumFetchIntervalMillis: 0 });
-                  await remoteConfig().setDefaults({ json_url: FALLBACK_URL });
-                  await remoteConfig().fetchAndActivate();
-                  
-                  const remoteVal = remoteConfig().getValue('json_url').asString();
-                  if (remoteVal && remoteVal.startsWith('http')) {
-                    targetUrl = remoteVal;
-                    // console.log("Firebase URL kullanılıyor:", targetUrl);
-                  }
-                } catch (fbError) {
-                  console.log("Firebase hatası, yedek linke geçiliyor.");
-                }
-
-                // 2. VERİ ÇEKME
-                const resp = await fetch(targetUrl, { headers: { 'Cache-Control': 'no-cache' } });
-                if (!resp.ok) throw new Error("Sunucu Hatası: " + resp.status);
+                const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
+                if (!resp.ok) throw new Error("Hata: " + resp.status);
                 
                 const json = await resp.json();
                 if (Array.isArray(json)) {
                   setData(json);
-                  setStatus(""); // Hata yoksa mesajı temizle
+                  setMsg("");
                 } else {
-                  setStatus("Veri formatı hatalı");
+                  setMsg("Format Hatası: Liste gelmedi");
                 }
               } catch (e) {
-                setStatus("HATA: " + e.message);
+                setMsg("HATA: " + e.message);
               } finally {
                 setLoading(false);
               }
             };
 
-            useEffect(() => { 
-              // 1 saniye gecikmeli başlat (Firebase native modülünün yüklenmesi için)
-              setTimeout(loadData, 1000); 
-            }, []);
+            useEffect(() => { loadData(); }, []);
 
             return (
-              <SafeAreaView style={{flex:1, backgroundColor:'#000', paddingTop:40}}>
+              <SafeAreaView style={{flex:1, backgroundColor:'#000', paddingTop: 40}}>
                 <StatusBar barStyle="light-content" />
                 <View style={{padding:20, borderBottomWidth:1, borderColor:'#333', flexDirection:'row', justifyContent:'space-between'}}>
                   <Text style={{color:'#FFD60A', fontSize:24, fontWeight:'bold'}}>Piyasa Pro</Text>
@@ -181,14 +114,14 @@ jobs:
                   </TouchableOpacity>
                 </View>
 
-                {status ? <Text style={{color:'red', textAlign:'center', margin:20, fontSize:12}}>{status}</Text> : null}
+                {msg ? <Text style={{color:'red', textAlign:'center', margin:20, fontSize:16}}>{msg}</Text> : null}
 
-                {loading ? <ActivityIndicator size="large" color="#FFD60A" style={{marginTop:20}} /> : (
+                {loading ? <ActivityIndicator size="large" color="#FFD60A" /> : (
                   <FlatList
                     data={data}
                     keyExtractor={(item, index) => index.toString()}
                     renderItem={({ item }) => (
-                      <View style={{flexDirection:'row', justifyContent:'space-between', padding:16, borderBottomWidth:1, borderColor:'#222'}}>
+                      <View style={{flexDirection:'row', justifyContent:'space-between', padding:15, borderBottomWidth:1, borderColor:'#222'}}>
                         <View>
                           <Text style={{color:'#FFF', fontSize:16, fontWeight:'bold'}}>{item.k}</Text>
                           <Text style={{color:'#888'}}>{item.t?.split(' ')[1]}</Text>
@@ -206,7 +139,7 @@ jobs:
           }
           EOF
 
-      # 7. APP.JSON (Firebase Plugin Aktif)
+      # 6. APP.JSON (Piyasa Pro Ayarları)
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
@@ -219,16 +152,13 @@ jobs:
               "userInterfaceStyle": "dark",
               "ios": {
                 "bundleIdentifier": "com.piyasapro.app",
-                "googleServicesFile": "./GoogleService-Info.plist",
-                "infoPlist": { "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true } }
+                "infoPlist": {
+                  "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+                }
               },
-              "android": { 
-                "package": "com.piyasapro.app",
-                "googleServicesFile": "./google-services.json"
+              "android": {
+                "package": "com.piyasapro.app"
               },
-              "plugins": [
-                "@react-native-firebase/app"
-              ],
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
               "runtimeVersion": { "policy": "appVersion" },
               "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
@@ -250,4 +180,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Firebase Re-Enabled" --non-interactive
+          eas update --branch preview --message "Back to Rescue Mode" --non-interactive
