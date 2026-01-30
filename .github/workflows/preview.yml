@@ -1,4 +1,4 @@
-name: ANLIK PİYASA - PRO UPDATE (NO ADMOB ERROR)
+name: ANLIK PİYASA - FINAL JSON STRUCTURE
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish-pro-fix:
+  publish-final-json:
     runs-on: ubuntu-latest
 
     steps:
@@ -39,7 +39,7 @@ jobs:
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 3. PACKAGE.JSON (AdMob Kütüphanesini Kaldırdım - Hata Sebebi Buydu)
+      # 3. PACKAGE.JSON (AdMob Plugin YOK - Hata Vermesin Diye)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -81,7 +81,7 @@ jobs:
           const { getDefaultConfig } = require('expo/metro-config'); const config = getDefaultConfig(__dirname); module.exports = config;
           EOF
 
-      # 5. APP.JS (YENİ API + KATEGORİLER + SİMÜLASYON REKLAM)
+      # 5. APP.JS (YENİ JSON YAPISI: doviz[] ve altin[])
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
@@ -95,7 +95,6 @@ jobs:
           import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
           // --- AYARLAR ---
-          // Yeni Hızlı API
           const URL = "https://creatorapp24.com/pre.php"; 
           const SCREEN_WIDTH = Dimensions.get('window').width;
           const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
@@ -107,14 +106,14 @@ jobs:
               calcTitle: "Döviz Hesaplayıcı", amount: "Miktar Giriniz", result: "SONUÇ",
               settings: "Ayarlar", theme: "Tema", language: "Dil", auto: "Otomatik",
               dark: "Karanlık", light: "Aydınlık", adSpace: "REKLAM ALANI",
-              bannerPlace: "REKLAM YERİ (Onay Bekleniyor)"
+              bannerPlace: "REKLAM YERİ"
             },
             en: {
               tab_currency: "CURRENCY", tab_gold: "GOLD", buy: "Buy", sell: "Sell",
               calcTitle: "Calculator", amount: "Enter Amount", result: "RESULT",
               settings: "Settings", theme: "Theme", language: "Language", auto: "Auto",
               dark: "Dark", light: "Light", adSpace: "AD SPACE",
-              bannerPlace: "AD PLACE (Waiting Approval)"
+              bannerPlace: "AD PLACE"
             }
           };
 
@@ -163,30 +162,21 @@ jobs:
               ]).start();
             }, [menuOpen]);
 
-            // --- YENİ API VERİ ÇEKME ---
+            // --- YENİ VERİ ÇEKME (doviz ve altin ayrı geliyor) ---
             const loadData = async (isAuto = false) => {
               if (!isAuto) setLoading(true);
               try {
                 const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
                 const json = await resp.json();
                 
-                if (json.status === "success" && Array.isArray(json.data)) {
-                  const currs = [];
-                  const glds = [];
-                  
-                  json.data.forEach(item => {
-                    const code = item.kod.toUpperCase();
-                    const name = item.isim.toUpperCase();
-                    // Altın ayrıştırma mantığı
-                    if (name.includes("ALTIN") || name.includes("GOLD") || code === "GA" || code === "C" || code === "XAU/USD" || name.includes("ÇEYREK") || name.includes("GRAM") || name.includes("ONS")) {
-                      glds.push(item);
-                    } else {
-                      currs.push(item);
-                    }
-                  });
-                  setCurrencies(currs);
-                  setGolds(glds);
+                // Gelen yapı: { "doviz": [...], "altin": [...] }
+                if (json.doviz && Array.isArray(json.doviz)) {
+                  setCurrencies(json.doviz);
                 }
+                if (json.altin && Array.isArray(json.altin)) {
+                  setGolds(json.altin);
+                }
+
               } catch (e) { console.error(e); } 
               finally { setLoading(false); setRefreshing(false); }
             };
@@ -194,54 +184,72 @@ jobs:
             useEffect(() => { loadData(); const i = setInterval(() => loadData(true), 15000); return () => clearInterval(i); }, []);
             const onRefresh = () => { setRefreshing(true); loadData(true); };
 
-            // --- HESAPLAMA ---
-            const parsePrice = (str) => { if(!str) return 0; return parseFloat(str.replace(',', '.')); };
+            // --- FİYAT TEMİZLEME VE HESAPLAMA ---
+            const cleanPrice = (priceStr) => {
+               if(!priceStr) return 0;
+               // Örnek: "$4.887,42" -> "$", "." silinir, "," nokta olur -> 4887.42
+               let clean = priceStr.replace('$', '').replace(/\./g, '').replace(',', '.').trim();
+               return parseFloat(clean);
+            };
 
             const openCalculator = (item) => { setSelectedItem(item); setAmount(''); setCalcResult(null); setCalcVisible(true); };
+            
             const handleCalculate = (text) => {
               setAmount(text);
               if (selectedItem && text) {
                 const val = parseFloat(text.replace(',', '.'));
-                const price = parsePrice(selectedItem.satis);
-                if (!isNaN(val)) setCalcResult((val * price).toFixed(2));
+                const price = cleanPrice(selectedItem.satis);
+                if (!isNaN(val) && !isNaN(price)) setCalcResult((val * price).toFixed(2));
               }
             };
 
-            const getStatusColor = (durum) => {
-               if(durum === 'yukseliste') return theme.green;
-               if(durum === 'dususte') return theme.red;
-               return theme.subText;
-            };
-
-            const getStatusIcon = (durum) => {
-               if(durum === 'yukseliste') return 'caret-up';
-               if(durum === 'dususte') return 'caret-down';
-               return 'remove-outline'; 
+            // --- OK RENGİ VE YÖNÜ ---
+            const getStatusData = (yon) => {
+               // Gelen veri: "yukselis" veya "dusus"
+               if(yon && yon.includes('yuksel')) return { color: theme.green, icon: 'caret-up' };
+               if(yon && yon.includes('dusus')) return { color: theme.red, icon: 'caret-down' };
+               return { color: theme.subText, icon: 'remove-outline' };
             };
 
             const renderItem = ({ item }) => {
-              const color = getStatusColor(item.durum);
-              const icon = getStatusIcon(item.durum);
+              const status = getStatusData(item.yon);
+              
               return (
                 <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
                   <View style={[styles.card, { backgroundColor: theme.card }]}>
+                    
+                    {/* SOL TARA: İKON VE KOD */}
                     <View style={{flexDirection:'row', alignItems:'center', flex:1}}>
                        <View style={[styles.iconBox, { backgroundColor: theme.tint }]}>
-                          <Text style={{fontSize:18, fontWeight:'800', color: theme.gold}}>{item.kod.substring(0,1)}</Text>
+                          <Text style={{fontSize:16, fontWeight:'800', color: theme.gold}}>
+                            {item.kod ? item.kod.substring(0,1) : '$'}
+                          </Text>
                        </View>
                        <View style={{marginLeft: 12, flex:1}}>
                           <Text style={{color: theme.text, fontWeight:'700', fontSize:16}} numberOfLines={1}>{item.kod}</Text>
-                          <Text style={{color: theme.subText, fontSize:11, marginTop:2}} numberOfLines={1}>{item.isim}</Text>
+                          {/* İsim boşsa kodu yaz */}
+                          <Text style={{color: theme.subText, fontSize:11, marginTop:2}} numberOfLines={1}>
+                             {item.isim && item.isim !== "" ? item.isim : item.kod}
+                          </Text>
                        </View>
                     </View>
+
+                    {/* SAĞ TARAF: FİYAT */}
                     <View style={{alignItems:'flex-end'}}>
                        <View style={{flexDirection:'row', alignItems:'center'}}>
-                          <Text style={{color: theme.text, fontSize:18, fontWeight:'800', marginRight:4, fontVariant: ['tabular-nums']}}>{item.satis}</Text>
-                          <Ionicons name={icon} size={18} color={color} />
+                          <Text style={{color: theme.text, fontSize:17, fontWeight:'800', marginRight:4, fontVariant: ['tabular-nums']}}>
+                            {item.satis}
+                          </Text>
+                          <Ionicons name={status.icon} size={16} color={status.color} />
                        </View>
+                       
                        <View style={{flexDirection:'row', marginTop:4, alignItems:'center'}}>
-                          <Text style={{color: color, fontSize:11, fontWeight:'600', marginRight: 8}}>{item.degisim}</Text>
-                          <Text style={{color: theme.subText, fontSize:11}}>{T.buy}: {item.alis}</Text>
+                          <Text style={{color: status.color, fontSize:11, fontWeight:'600', marginRight: 8}}>
+                            {item.degisim}
+                          </Text>
+                          <Text style={{color: theme.subText, fontSize:11}}>
+                            {T.buy}: {item.alis}
+                          </Text>
                        </View>
                     </View>
                   </View>
@@ -276,16 +284,16 @@ jobs:
                 {loading ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:50}} /> : (
                   <FlatList
                     data={activeTab === 'currency' ? currencies : golds} 
-                    keyExtractor={item => item.kod} 
+                    keyExtractor={(item, index) => item.kod + index} 
                     renderItem={renderItem}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
                     contentContainerStyle={{paddingTop: 15, paddingBottom: 100}}
                     ItemSeparatorComponent={() => <View style={{height: 10}} />}
-                    ListEmptyComponent={<Text style={{color:theme.subText, textAlign:'center', marginTop:20}}>Veri Bulunamadı</Text>}
+                    ListEmptyComponent={<Text style={{color:theme.subText, textAlign:'center', marginTop:20}}>Veri Yükleniyor...</Text>}
                   />
                 )}
 
-                {/* REKLAM ALANI (SİMÜLASYON) */}
+                {/* REKLAM ALANI */}
                 <View style={[styles.bannerContainer, { paddingBottom: insets.bottom + 10, backgroundColor: theme.surface, borderTopColor: theme.border }]}>
                   <Text style={{color: theme.subText, fontSize:9, marginBottom:4, letterSpacing:1}}>{T.adSpace}</Text>
                   <View style={[styles.bannerBox, { backgroundColor: theme.tint, borderColor: theme.border }]}>
@@ -340,8 +348,8 @@ jobs:
                               </TouchableOpacity>
                            </View>
                            <View style={{alignItems:'center', marginBottom:20}}>
-                              <Text style={{color: theme.subText, fontSize:14}}>{selectedItem?.isim}</Text>
-                              <Text style={{color: theme.gold, fontSize:32, fontWeight:'800', marginVertical:5}}>{selectedItem?.satis} ₺</Text>
+                              <Text style={{color: theme.subText, fontSize:14}}>{selectedItem?.kod}</Text>
+                              <Text style={{color: theme.gold, fontSize:32, fontWeight:'800', marginVertical:5}}>{selectedItem?.satis}</Text>
                            </View>
                            <TextInput 
                               style={[styles.input, { backgroundColor: theme.input, color: theme.text }]}
@@ -350,7 +358,7 @@ jobs:
                            />
                            {calcResult && (
                               <View style={{marginTop:20, padding:16, backgroundColor: theme.green, borderRadius:16, alignItems:'center'}}>
-                                 <Text style={{color:'#FFF', fontSize:28, fontWeight:'800'}}>{calcResult} ₺</Text>
+                                 <Text style={{color:'#FFF', fontSize:28, fontWeight:'800'}}>{calcResult}</Text>
                               </View>
                            )}
                         </TouchableOpacity>
@@ -386,7 +394,7 @@ jobs:
           });
           EOF
 
-      # 6. APP.JSON (AdMob Plugin Kaldırıldı - Update Hata Vermesin Diye)
+      # 6. APP.JSON
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
@@ -433,4 +441,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "New API + Categories + NO ERROR" --non-interactive
+          eas update --branch preview --message "JSON Structure Fixed" --non-interactive
