@@ -1,4 +1,4 @@
-name: ANLIK PİYASA - PRO UPDATE (SIDE MENU + LANG)
+name: ANLIK PİYASA - FIX SPLASH FREEZE
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish-preview:
+  publish-fix:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,16 +22,16 @@ jobs:
         with:
           node-version: 20
 
-      # 2. GÖRSELLERİ OLUŞTUR (Özel İkon + Splash)
+      # 2. GÖRSELLER (Native Splash için)
       - name: 🎨 Görselleri Oluştur
         run: |
           sudo apt-get install imagemagick -y
           mkdir -p assets
           
-          # İkonu İndir
+          # İkon
           curl -L -o assets/icon.png "https://i.ibb.co/99mj6zkx/71cf52be-22d6-4382-8a4e-bb42ea43796e.png"
           
-          # Splash Ekranı Çiz (Native açılış için)
+          # Splash (Siyah Zemin + Gold Yazı) - Native olarak kullanılacak
           convert -size 1242x2688 xc:"#000000" \
             -fill "#F59E0B" -font DejaVu-Sans-Bold -gravity center -pointsize 100 -annotate 0 "ANLIK PİYASA" \
             assets/splash.png
@@ -56,6 +56,7 @@ jobs:
               "@expo/vector-icons": "~14.0.0",
               "react-native-safe-area-context": "4.12.0",
               "expo-localization": "~16.0.0",
+              "expo-splash-screen": "~0.27.0", 
               "i18n-js": "^4.4.3"
             },
             "devDependencies": {
@@ -76,116 +77,107 @@ jobs:
           const { getDefaultConfig } = require('expo/metro-config'); const config = getDefaultConfig(__dirname); module.exports = config;
           EOF
 
-      # 5. APP.JS (YAN MENÜ, DİL, SPLASH, OK FİX)
+      # 5. APP.JS (GARANTİLİ AÇILIŞ MANTIĞI)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
-          import React, { useState, useEffect, useRef } from 'react';
+          import React, { useState, useEffect, useRef, useCallback } from 'react';
           import { 
             Text, View, FlatList, ActivityIndicator, StatusBar, TouchableOpacity, 
             StyleSheet, Modal, Platform, TextInput, Keyboard, RefreshControl, 
-            Animated, Dimensions, I18nManager
+            Animated, Dimensions
           } from 'react-native';
           import { Ionicons } from '@expo/vector-icons';
           import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+          import * as SplashScreen from 'expo-splash-screen';
           import * as Localization from 'expo-localization';
 
-          // --- SABİTLER ---
+          // --- SPLASH EKRANINI TUT (Yükleme bitene kadar) ---
+          SplashScreen.preventAutoHideAsync();
+
           const BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
           const URL = "https://imdatgel.site/harem/piyasa_cache.json";
           const SCREEN_WIDTH = Dimensions.get('window').width;
 
-          // --- DİL SÖZLÜĞÜ ---
           const translations = {
-            tr: {
-              title: "ANLIK",
-              titlePro: "PİYASA",
-              buy: "Alış",
-              calc: "Hesapla",
-              calcTitle: "Hesap Makinesi",
-              amount: "Miktar",
-              result: "TOPLAM TUTAR",
-              loading: "Yükleniyor...",
-              settings: "Ayarlar",
-              language: "Dil Seçeneği",
-              theme: "Tema",
-              close: "Kapat",
-              menu: "Menü",
-              auto: "Otomatik",
-              adSpace: "REKLAM ALANI",
-              adDesc: "Apple onayından sonra burada reklam çıkacak."
-            },
-            en: {
-              title: "LIVE",
-              titlePro: "MARKET",
-              buy: "Buy",
-              calc: "Calculate",
-              calcTitle: "Calculator",
-              amount: "Amount",
-              result: "TOTAL PRICE",
-              loading: "Loading...",
-              settings: "Settings",
-              language: "Language",
-              theme: "Theme",
-              close: "Close",
-              menu: "Menu",
-              auto: "Automatic",
-              adSpace: "AD SPACE",
-              adDesc: "Ads will appear here after Apple approval."
-            }
+            tr: { title: "ANLIK", titlePro: "PİYASA", buy: "Alış", calc: "Hesapla", calcTitle: "Hesap Makinesi", amount: "Miktar", result: "TOPLAM TUTAR", settings: "Ayarlar", language: "Dil Seçeneği", theme: "Tema", auto: "Otomatik", adSpace: "REKLAM ALANI" },
+            en: { title: "LIVE", titlePro: "MARKET", buy: "Buy", calc: "Calculate", calcTitle: "Calculator", amount: "Amount", result: "TOTAL PRICE", settings: "Settings", language: "Language", theme: "Theme", auto: "Automatic", adSpace: "AD SPACE" }
           };
 
           function MainApp() {
             const insets = useSafeAreaInsets();
+            const [appIsReady, setAppIsReady] = useState(false); // Uygulama Hazır mı?
             
-            // --- STATE ---
             const [data, setData] = useState([]);
-            const [prevData, setPrevData] = useState({}); // Önceki fiyatlar (Oklar için)
+            const [prevData, setPrevData] = useState({});
             const [loading, setLoading] = useState(true);
             const [refreshing, setRefreshing] = useState(false);
             const [isDarkMode, setIsDarkMode] = useState(true);
             const [currentTime, setCurrentTime] = useState("");
-            const [showSplash, setShowSplash] = useState(true); // JS Splash Kontrolü
 
-            // Dil Ayarları
-            const [locale, setLocale] = useState(Localization.getLocales()[0].languageCode); // 'tr' or 'en'
-            const [userLang, setUserLang] = useState('auto'); // auto, tr, en
+            const [locale, setLocale] = useState(Localization.getLocales()[0].languageCode);
+            const [userLang, setUserLang] = useState('auto');
             const t = translations[userLang === 'auto' ? (locale.includes('tr') ? 'tr' : 'en') : userLang];
 
-            // Menü & Hesap Makinesi
             const [menuVisible, setMenuVisible] = useState(false);
             const slideAnim = useRef(new Animated.Value(-SCREEN_WIDTH * 0.7)).current;
-            
             const [calcVisible, setCalcVisible] = useState(false);
             const [selectedItem, setSelectedItem] = useState(null);
             const [amount, setAmount] = useState('');
             const [calcResult, setCalcResult] = useState(null);
 
-            // Tema Renkleri
             const theme = isDarkMode ? {
-              bg: '#0F172A', card: '#1E293B', text: '#F8FAFC', subText: '#94A3B8',
-              gold: '#F59E0B', green: '#10B981', red: '#EF4444', border: '#334155',
-              modal: '#1E293B', input: '#334155', drawer: '#0F172A'
+              bg: '#0F172A', card: '#1E293B', text: '#F8FAFC', subText: '#94A3B8', gold: '#F59E0B', green: '#10B981', red: '#EF4444', border: '#334155', modal: '#1E293B', input: '#334155', drawer: '#0F172A'
             } : {
-              bg: '#F1F5F9', card: '#FFFFFF', text: '#1E293B', subText: '#64748B',
-              gold: '#D97706', green: '#059669', red: '#DC2626', border: '#E2E8F0',
-              modal: '#FFFFFF', input: '#F1F5F9', drawer: '#FFFFFF'
+              bg: '#F1F5F9', card: '#FFFFFF', text: '#1E293B', subText: '#64748B', gold: '#D97706', green: '#059669', red: '#DC2626', border: '#E2E8F0', modal: '#FFFFFF', input: '#F1F5F9', drawer: '#FFFFFF'
             };
 
-            // --- 2 SANİYELİK SPLASH EKRANI ---
+            // --- AÇILIŞ MANTIĞI (FİX) ---
             useEffect(() => {
-              setTimeout(() => {
-                setShowSplash(false);
-              }, 2000);
+              async function prepare() {
+                try {
+                  // 1. Verileri çekmeye çalış
+                  const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
+                  const json = await resp.json();
+                  if (Array.isArray(json)) {
+                    setData(json);
+                    const map = {}; json.forEach(i => map[i.k] = parseFloat(i.s)); setPrevData(map);
+                  }
+                } catch (e) {
+                  console.warn(e); // Hata olsa bile devam et, takılma!
+                } finally {
+                  // 2. Ne olursa olsun 2 saniye bekle (Splash görünsün diye)
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                  
+                  // 3. Uygulamayı hazır et
+                  setAppIsReady(true);
+                  setLoading(false);
+                }
+              }
+              prepare();
+              
+              // Saat
+              const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString('tr-TR')), 1000);
+              return () => clearInterval(timer);
             }, []);
 
-            // Saat
-            useEffect(() => {
-              const t = setInterval(() => setCurrentTime(new Date().toLocaleTimeString('tr-TR')), 1000);
-              return () => clearInterval(t);
-            }, []);
+            // --- LAYOUT HAZIR OLUNCA SPLASH'İ GİZLE ---
+            const onLayoutRootView = useCallback(async () => {
+              if (appIsReady) {
+                // Native Splash ekranını kaldır
+                await SplashScreen.hideAsync();
+              }
+            }, [appIsReady]);
 
-            // --- YAN MENÜ ANİMASYONU ---
+            const loadData = async () => {
+              try {
+                 const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
+                 const json = await resp.json();
+                 if(Array.isArray(json)) setData(json);
+              } catch(e) {} finally { setRefreshing(false); }
+            };
+            const onRefresh = () => { setRefreshing(true); loadData(); };
+
             const toggleMenu = () => {
               if (menuVisible) {
                 Animated.timing(slideAnim, { toValue: -SCREEN_WIDTH * 0.7, duration: 300, useNativeDriver: true }).start(() => setMenuVisible(false));
@@ -195,32 +187,6 @@ jobs:
               }
             };
 
-            // --- VERİ ÇEKME & OKLARIN DÜZELTİLMESİ ---
-            const loadData = async (isAuto = false) => {
-              if (!isAuto) setLoading(true);
-              try {
-                const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
-                const json = await resp.json();
-                if (Array.isArray(json)) {
-                  // Veriyi güncellemeden önce eskileri sakla
-                  setData(currentData => {
-                    // Eğer mevcut veri varsa, onu prevData'ya at
-                    if (currentData.length > 0) {
-                      const map = {};
-                      currentData.forEach(i => map[i.k] = parseFloat(i.s));
-                      setPrevData(map);
-                    }
-                    return json;
-                  });
-                }
-              } catch (e) { console.error(e); } 
-              finally { setLoading(false); setRefreshing(false); }
-            };
-
-            useEffect(() => { loadData(); const i = setInterval(() => loadData(true), 30000); return () => clearInterval(i); }, []);
-            const onRefresh = () => { setRefreshing(true); loadData(true); };
-
-            // --- HESAPLAMA ---
             const openCalculator = (item) => { setSelectedItem(item); setAmount(''); setCalcResult(null); setCalcVisible(true); };
             const handleCalculate = (text) => {
               setAmount(text);
@@ -231,17 +197,14 @@ jobs:
               }
             };
 
-            // --- OK YÖNÜ ---
             const getTrendIcon = (symbol, s) => {
-               const cur = parseFloat(s); 
-               const old = prevData[symbol];
-               if(!old || isNaN(old)) return {n:'remove', c:theme.subText}; // Değişim yok veya veri yeni
+               const cur = parseFloat(s); const old = prevData[symbol];
+               if(!old || isNaN(old)) return {n:'remove', c:theme.subText};
                if(cur > old) return {n:'caret-up', c:theme.green};
                if(cur < old) return {n:'caret-down', c:theme.red};
                return {n:'remove', c:theme.subText};
             };
 
-            // --- RENDER ITEMS ---
             const renderItem = ({ item }) => {
               const trend = getTrendIcon(item.k, item.s);
               return (
@@ -268,25 +231,16 @@ jobs:
               );
             };
 
-            // EĞER SPLASH AÇIKSA ONU GÖSTER
-            if (showSplash) {
-              return (
-                <View style={{flex:1, backgroundColor:'#000', justifyContent:'center', alignItems:'center'}}>
-                   <StatusBar barStyle="light-content" />
-                   <Text style={{color:'#F59E0B', fontSize:32, fontWeight:'bold', letterSpacing:2}}>ANLIK PİYASA</Text>
-                   <ActivityIndicator size="small" color="#F59E0B" style={{marginTop:20}} />
-                </View>
-              );
+            if (!appIsReady) {
+               return null; // Splash ekranı hala görünüyor (Native)
             }
 
             return (
-              <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
+              <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]} onLayout={onLayoutRootView}>
                 <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
                 
-                {/* HEADER */}
                 <View style={[styles.header, { borderBottomColor: theme.border }]}>
                    <View style={{flexDirection:'row', alignItems:'center'}}>
-                     {/* MENÜ İKONU */}
                      <TouchableOpacity onPress={toggleMenu} style={{marginRight:15}}>
                         <Ionicons name="menu" size={28} color={theme.text} />
                      </TouchableOpacity>
@@ -297,8 +251,7 @@ jobs:
                    </View>
                 </View>
 
-                {/* LİSTE */}
-                {loading && data.length === 0 ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:20}} /> : (
+                {loading ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:20}} /> : (
                   <FlatList
                     data={data} keyExtractor={item => item.k} renderItem={renderItem}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
@@ -306,7 +259,6 @@ jobs:
                   />
                 )}
 
-                {/* BANNER REKLAM (SAFE MODE) */}
                 <View style={{alignItems:'center', borderTopWidth:1, borderColor:theme.border, padding: 10, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 5 : 10, backgroundColor: isDarkMode ? '#000' : '#eee' }}>
                   <Text style={{color: theme.subText, fontSize:9, marginBottom:2}}>ID: {BANNER_ID.slice(0,8)}...</Text>
                   <View style={{width: 320, height: 50, backgroundColor: theme.card, borderWidth:1, borderColor: theme.border, justifyContent:'center', alignItems:'center', borderRadius:6}}>
@@ -314,14 +266,11 @@ jobs:
                   </View>
                 </View>
 
-                {/* --- YAN MENÜ (DRAWER) --- */}
                 {menuVisible && (
                    <TouchableOpacity activeOpacity={1} onPress={toggleMenu} style={styles.menuOverlay}>
                       <Animated.View style={[styles.sideMenu, { transform: [{ translateX: slideAnim }], backgroundColor: theme.drawer }]}> 
                          <View style={{marginTop: insets.top + 20, paddingHorizontal: 20}}>
                             <Text style={{color: theme.text, fontSize:24, fontWeight:'bold', marginBottom:30}}>{t.settings}</Text>
-
-                            {/* DİL SEÇİMİ */}
                             <Text style={{color: theme.subText, fontSize:14, marginBottom:10}}>{t.language}</Text>
                             <View style={{flexDirection:'row', gap:10, marginBottom:30}}>
                                <TouchableOpacity onPress={() => setUserLang('tr')} style={[styles.langBtn, userLang === 'tr' && {borderColor: theme.gold, borderWidth:1}]}>
@@ -334,8 +283,6 @@ jobs:
                                   <Text style={{color: theme.text}}>{t.auto}</Text>
                                </TouchableOpacity>
                             </View>
-
-                            {/* TEMA SEÇİMİ */}
                             <Text style={{color: theme.subText, fontSize:14, marginBottom:10}}>{t.theme}</Text>
                             <View style={{flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: theme.card, padding:15, borderRadius:12}}>
                                <Text style={{color: theme.text}}>{isDarkMode ? "Karanlık Mod" : "Aydınlık Mod"}</Text>
@@ -343,14 +290,11 @@ jobs:
                                   <Ionicons name={isDarkMode ? "moon" : "sunny"} size={26} color={theme.gold} />
                                </TouchableOpacity>
                             </View>
-                            
-                            <Text style={{color: theme.subText, marginTop: 50, fontSize: 10, textAlign:'center'}}>Versiyon 1.0.0 (Safe Mode)</Text>
                          </View>
                       </Animated.View>
                    </TouchableOpacity>
                 )}
 
-                {/* HESAP MAKİNESİ */}
                 <Modal visible={calcVisible} transparent={true} animationType="slide" onRequestClose={() => setCalcVisible(false)}>
                   <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
                     <TouchableOpacity style={{flex:1, justifyContent:'center', alignItems:'center', width:'100%'}} activeOpacity={1} onPress={Keyboard.dismiss}>
@@ -437,8 +381,8 @@ jobs:
           npm install -g eas-cli
           npm install --legacy-peer-deps
 
-      - name: 🚀 Güncelle
+      - name: 🚀 Güncelle (Fix Splash)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Menu + Lang + Fix" --non-interactive
+          eas update --branch preview --message "Splash Fix & Menu" --non-interactive
