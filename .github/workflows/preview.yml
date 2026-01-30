@@ -39,7 +39,7 @@ jobs:
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 3. PACKAGE.JSON (DÜZELTİLDİ: lucide-react-native versiyonu "*" yapıldı)
+      # 3. PACKAGE.JSON (LUCIDE FIX)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -433,7 +433,7 @@ jobs:
           });
           EOF
 
-      # 6. APP.JSON
+      # 6. APP.JSON (DÜZELTİLDİ: "owner" alanı eklendi)
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
@@ -441,6 +441,7 @@ jobs:
             "expo": {
               "name": "FinansCepte",
               "slug": "eminxtream",
+              "owner": "eminxtream",
               "version": "1.0.0",
               "orientation": "portrait",
               "userInterfaceStyle": "light",
@@ -480,4 +481,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "New Design: FinansCepte Fixed" --non-interactive
+          eas update --branch preview --message "New Design: Owner Fixed" --non-interactive
