@@ -1,7 +1,7 @@
-name: EminXtream iOS BUILD (IPA)
+name: ANLIK PİYASA - FINAL IPA (Fixed)
 
 on:
-  workflow_dispatch: # Bu işlemi sadece sen butona basınca başlatır (Otomatik çalışmaz, çünkü build hakkın sınırlı)
+  workflow_dispatch:
 
 jobs:
   build-ios:
@@ -20,14 +20,35 @@ jobs:
         with:
           node-version: 20
 
-      # 2. CONFIG DOSYALARI
+      # 2. GRAFİK MOTORU (İkon ve Splash İçin)
+      - name: 🎨 ImageMagick Kur
+        run: sudo apt-get install imagemagick -y
 
-      # A) PACKAGE.JSON (Gerçek AdMob Kütüphanesi Dahil)
+      # 3. GÖRSELLERİ HAZIRLA (Senin Linkin + Gold Splash)
+      - name: 🖼 İkon ve Splash Oluştur
+        run: |
+          mkdir -p assets
+          
+          # A) Senin İstediğin İkonu İndir
+          echo "İkon indiriliyor..."
+          curl -L -o assets/icon.png "https://i.ibb.co/99mj6zkx/71cf52be-22d6-4382-8a4e-bb42ea43796e.png"
+
+          # B) Gold Splash Ekranı Çiz (Siyah Zemin + Gold Yazı)
+          echo "Splash çiziliyor..."
+          convert -size 1242x2688 xc:"#000000" \
+            -fill "#F59E0B" -font DejaVu-Sans-Bold -gravity center -pointsize 100 -annotate 0 "ANLIK PİYASA" \
+            assets/splash.png
+
+          # Diğer ikonları çoğalt
+          cp assets/icon.png assets/adaptive-icon.png
+          cp assets/icon.png assets/favicon.png
+
+      # 4. PACKAGE.JSON (Gerekli Tüm Kütüphaneler)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
           {
-            "name": "eminxtream",
+            "name": "anlik-piyasa",
             "version": "1.0.0",
             "main": "node_modules/expo/AppEntry.js",
             "dependencies": {
@@ -37,8 +58,9 @@ jobs:
               "expo-status-bar": "~2.1.0",
               "fs-extra": "^11.2.0",
               "@expo/vector-icons": "~14.0.0",
-              "react-native-google-mobile-ads": "^13.0.0",
+              "react-native-google-mobile-ads": "^14.2.0", 
               "react-native-safe-area-context": "4.12.0",
+              "expo-splash-screen": "~0.27.0",
               "expo-build-properties": "~0.12.0"
             },
             "devDependencies": {
@@ -49,19 +71,21 @@ jobs:
           }
           EOF
 
-      # B) EAS.JSON (Build Ayarları - ÖNEMLİ)
+      # 5. EAS.JSON (Hata Çözümü: appVersionSource Eklendi)
       - name: 📄 eas.json Oluştur
         run: |
           cat > eas.json <<'EOF'
           {
             "cli": {
-              "version": ">= 10.0.0"
+              "version": ">= 10.0.0",
+              "appVersionSource": "remote"
             },
             "build": {
               "preview": {
                 "distribution": "internal",
                 "ios": {
-                  "simulator": false
+                  "simulator": false,
+                  "image": "latest"
                 }
               },
               "production": {
@@ -73,7 +97,67 @@ jobs:
           }
           EOF
 
-      # C) APP.JS (Gerçek AdMob Entegrasyonu)
+      # 6. APP.JSON (AdMob Plugin Fix)
+      - name: 📄 app.json Oluştur
+        run: |
+          cat > app.json <<'EOF'
+          {
+            "expo": {
+              "name": "ANLIK PİYASA",
+              "slug": "anlik-piyasa",
+              "version": "1.0.0",
+              "orientation": "portrait",
+              "icon": "./assets/icon.png",
+              "userInterfaceStyle": "automatic",
+              "splash": {
+                "image": "./assets/splash.png",
+                "resizeMode": "contain",
+                "backgroundColor": "#000000"
+              },
+              "ios": {
+                "bundleIdentifier": "com.piyasapro.app",
+                "supportsTablet": true,
+                "infoPlist": {
+                  "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true },
+                  "SKAdNetworkItems": [
+                    { "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork" }
+                  ]
+                }
+              },
+              "android": {
+                "package": "com.piyasapro.app",
+                "adaptiveIcon": {
+                  "foregroundImage": "./assets/adaptive-icon.png",
+                  "backgroundColor": "#000000"
+                }
+              },
+              "plugins": [
+                [
+                  "react-native-google-mobile-ads",
+                  {
+                    "androidAppId": "ca-app-pub-2289573527937577~7422350827",
+                    "iosAppId": "ca-app-pub-2289573527937577~7422350827"
+                  }
+                ],
+                [
+                  "expo-build-properties",
+                  {
+                    "ios": {
+                      "useFrameworks": "static"
+                    }
+                  }
+                ]
+              ],
+              "extra": {
+                "eas": {
+                  "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4"
+                }
+              }
+            }
+          }
+          EOF
+
+      # 7. APP.JS (Uygulama Kodu)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
@@ -85,13 +169,11 @@ jobs:
           } from 'react-native';
           import { Ionicons } from '@expo/vector-icons';
           import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-          // GERÇEK ADMOB KÜTÜPHANESİ
-          import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+          import { BannerAd, BannerAdSize, InterstitialAd, AdEventType } from 'react-native-google-mobile-ads';
+          import * as SplashScreen from 'expo-splash-screen';
 
-          // --- REKLAM ID'LERİ ---
-          // NOT: Build alırken gerçek ID kullanmak bazen risklidir (banlanma riski).
-          // İlk denemede TestIds.BANNER kullanıp, çalıştığını görünce gerçek ID'ye geçmek daha sağlıklıdır.
-          // Şimdilik senin verdiğin gerçek ID'leri koyuyorum.
+          SplashScreen.preventAutoHideAsync();
+
           const BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
           const INTERSTITIAL_ID = "ca-app-pub-2289573527937577/6951577531";
           const URL = "https://imdatgel.site/harem/piyasa_cache.json";
@@ -103,13 +185,13 @@ jobs:
           function MainApp() {
             const insets = useSafeAreaInsets();
             const [data, setData] = useState([]);
+            const [prevData, setPrevData] = useState({});
             const [loading, setLoading] = useState(true);
             const [refreshing, setRefreshing] = useState(false);
             const [interstitialLoaded, setInterstitialLoaded] = useState(false);
             const [isDarkMode, setIsDarkMode] = useState(true);
             const [currentTime, setCurrentTime] = useState("");
             
-            // Hesap Makinesi
             const [calcVisible, setCalcVisible] = useState(false);
             const [selectedItem, setSelectedItem] = useState(null);
             const [amount, setAmount] = useState('');
@@ -126,21 +208,14 @@ jobs:
             };
 
             useEffect(() => {
-              const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-                setInterstitialLoaded(true);
-              });
-              const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+              const u1 = interstitial.addAdEventListener(AdEventType.LOADED, () => setInterstitialLoaded(true));
+              const u2 = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
                 setInterstitialLoaded(false);
                 interstitial.load();
               });
               interstitial.load();
-              
-              const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString('tr-TR')), 1000);
-              return () => {
-                unsubscribeLoaded();
-                unsubscribeClosed();
-                clearInterval(timer);
-              };
+              const t = setInterval(() => setCurrentTime(new Date().toLocaleTimeString('tr-TR')), 1000);
+              return () => { u1(); u2(); clearInterval(t); };
             }, []);
 
             const loadData = async (isAuto = false) => {
@@ -149,58 +224,71 @@ jobs:
                 const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
                 const json = await resp.json();
                 if (Array.isArray(json)) {
-                  setData(json);
-                  // Rastgele reklam gösterimi (her yenilemede %25 şans)
-                  if (Math.random() < 0.25 && interstitialLoaded) {
-                     interstitial.show();
-                  }
+                  setData(c => {
+                     const m = {}; c.forEach(i => m[i.k] = parseFloat(i.s)); setPrevData(m); return json;
+                  });
+                  if (!isAuto) await SplashScreen.hideAsync();
+                  if (isAuto && interstitialLoaded && Math.random() < 0.25) interstitial.show();
                 }
               } catch (e) { console.error(e); } 
-              finally { setLoading(false); setRefreshing(false); }
+              finally { setLoading(false); setRefreshing(false); if (!isAuto) await SplashScreen.hideAsync(); }
             };
 
             useEffect(() => { loadData(); }, []);
-
             const onRefresh = () => { setRefreshing(true); loadData(true); };
 
             const openCalculator = (item) => {
-              setSelectedItem(item);
-              setAmount('');
-              setCalcResult(null);
-              setCalcVisible(true);
+              setSelectedItem(item); setAmount(''); setCalcResult(null); setCalcVisible(true);
             };
 
             const handleCalculate = (text) => {
               setAmount(text);
               if (selectedItem && text) {
                 const val = parseFloat(text.replace(',', '.'));
-                const price = parseFloat(selectedItem.s);
-                if (!isNaN(val)) setCalcResult((val * price).toFixed(2));
+                const p = parseFloat(selectedItem.s);
+                if (!isNaN(val)) setCalcResult((val * p).toFixed(2));
               }
             };
 
-            const renderItem = ({ item }) => (
-              <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
-                <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <View>
-                     <Text style={{color: theme.text, fontWeight:'bold', fontSize:16}}>{item.k.replace('_', ' ')}</Text>
-                     <Text style={{color: theme.subText, fontSize:11}}>{item.t?.split(' ')[1]}</Text>
+            const getTrendIcon = (symbol, s) => {
+               const cur = parseFloat(s); const old = prevData[symbol];
+               if(!old) return {n:'remove', c:theme.subText};
+               if(cur > old) return {n:'caret-up', c:theme.green};
+               if(cur < old) return {n:'caret-down', c:theme.red};
+               return {n:'remove', c:theme.subText};
+            };
+
+            const renderItem = ({ item }) => {
+              const trend = getTrendIcon(item.k, item.s);
+              return (
+                <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
+                  <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                    <View style={{flexDirection:'row', alignItems:'center'}}>
+                       <View style={[styles.iconBox, { backgroundColor: isDarkMode ? 'rgba(245,158,11,0.2)' : 'rgba(217,119,6,0.1)' }]}>
+                          <Text style={{fontSize:18, fontWeight:'bold', color: theme.gold}}>{item.k.replace('_',' ').charAt(0)}</Text>
+                       </View>
+                       <View>
+                          <Text style={{color: theme.text, fontWeight:'bold', fontSize:16}}>{item.k.replace('_', ' ')}</Text>
+                          <Text style={{color: theme.subText, fontSize:11}}>{item.t?.split(' ')[1]}</Text>
+                       </View>
+                    </View>
+                    <View style={{alignItems:'flex-end'}}>
+                       <View style={{flexDirection:'row', alignItems:'center'}}>
+                          <Text style={{color: theme.text, fontSize:18, fontWeight:'bold', marginRight:5}}>{parseFloat(item.s).toFixed(2)}</Text>
+                          <Ionicons name={trend.n} size={20} color={trend.c} />
+                       </View>
+                       <Text style={{color: theme.subText, fontSize:12}}>Alış: {parseFloat(item.a).toFixed(2)}</Text>
+                    </View>
                   </View>
-                  <View style={{alignItems:'flex-end'}}>
-                     <Text style={{color: theme.text, fontSize:18, fontWeight:'bold'}}>{parseFloat(item.s).toFixed(2)}</Text>
-                     <Text style={{color: theme.subText, fontSize:12}}>Alış: {parseFloat(item.a).toFixed(2)}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
+                </TouchableOpacity>
+              );
+            };
 
             return (
               <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
                 <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
-                
-                {/* HEADER */}
                 <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                   <Text style={[styles.title, { color: theme.text }]}>Piyasa<Text style={{color: theme.gold}}>Pro</Text></Text>
+                   <Text style={[styles.title, { color: theme.text }]}>ANLIK <Text style={{color: theme.gold}}>PİYASA</Text></Text>
                    <View style={{flexDirection:'row', alignItems:'center'}}>
                       <Text style={[styles.clock, { color: theme.gold, backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>{currentTime}</Text>
                       <TouchableOpacity onPress={() => setIsDarkMode(!isDarkMode)} style={{marginLeft:10}}>
@@ -208,36 +296,23 @@ jobs:
                       </TouchableOpacity>
                    </View>
                 </View>
-
-                {/* LISTE */}
                 {loading ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:20}} /> : (
                   <FlatList
-                    data={data}
-                    keyExtractor={item => item.k}
-                    renderItem={renderItem}
+                    data={data} keyExtractor={item => item.k} renderItem={renderItem}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
                     contentContainerStyle={{paddingBottom: 60}}
                   />
                 )}
-
-                {/* REKLAM BANNER */}
                 <View style={{alignItems:'center', borderTopWidth:1, borderColor:theme.border, paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0 }}>
-                  <BannerAd
-                    unitId={BANNER_ID}
-                    size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-                  />
+                  <BannerAd unitId={BANNER_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
                 </View>
-
-                {/* HESAP MAKİNESİ */}
                 <Modal visible={calcVisible} transparent={true} animationType="slide" onRequestClose={() => setCalcVisible(false)}>
                   <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
                     <TouchableOpacity style={{flex:1, justifyContent:'center', alignItems:'center', width:'100%'}} activeOpacity={1} onPress={Keyboard.dismiss}>
                        <View style={[styles.calcContent, { backgroundColor: theme.modal, borderColor: theme.gold }]}>
                           <View style={{flexDirection:'row', justifyContent:'space-between', marginBottom:20}}>
                              <Text style={{color:theme.text, fontSize:18, fontWeight:'bold'}}>Hesapla</Text>
-                             <TouchableOpacity onPress={() => setCalcVisible(false)}>
-                                <Ionicons name="close-circle" size={30} color={theme.red} />
-                             </TouchableOpacity>
+                             <TouchableOpacity onPress={() => setCalcVisible(false)}><Ionicons name="close-circle" size={30} color={theme.red} /></TouchableOpacity>
                           </View>
                           <Text style={{color: theme.gold, fontSize:22, fontWeight:'bold', marginBottom:15}}>{selectedItem?.s} ₺</Text>
                           <TextInput 
@@ -257,98 +332,34 @@ jobs:
               </View>
             );
           }
-
-          export default function App() {
-            return (
-              <SafeAreaProvider>
-                <MainApp />
-              </SafeAreaProvider>
-            );
-          }
-
+          export default function App() { return <SafeAreaProvider><MainApp /></SafeAreaProvider>; }
           const styles = StyleSheet.create({
-            container: { flex: 1 },
-            header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1 },
-            title: { fontSize: 24, fontWeight: '800' },
-            clock: { fontSize: 13, fontWeight: 'bold', padding: 6, borderRadius: 6, overflow: 'hidden' },
+            container: { flex: 1 }, header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1 },
+            title: { fontSize: 22, fontWeight: '800' }, clock: { fontSize: 13, fontWeight: 'bold', padding: 6, borderRadius: 6, overflow: 'hidden' },
             card: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, marginHorizontal: 16, marginBottom: 10, borderRadius: 16, borderWidth: 1 },
+            iconBox: { width: 42, height: 42, borderRadius: 12, justifyContent:'center', alignItems:'center', marginRight:12 },
             modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center' },
             calcContent: { width: '90%', padding: 20, borderRadius: 24, borderWidth: 1, elevation: 10 },
             input: { height: 50, borderRadius: 12, paddingHorizontal: 15, borderWidth: 1, fontSize: 18 }
           });
           EOF
 
-      # D) APP.JSON (PLUGIN AÇIK - IPA İÇİN ŞART)
-      - name: 📄 app.json Oluştur
-        run: |
-          cat > app.json <<'EOF'
-          {
-            "expo": {
-              "name": "Piyasa Pro",
-              "slug": "eminxtream",
-              "version": "1.0.0",
-              "orientation": "portrait",
-              "userInterfaceStyle": "automatic",
-              "ios": {
-                "bundleIdentifier": "com.piyasapro.app",
-                "supportsTablet": true,
-                "config": {
-                  "googleMobileAdsAppId": "ca-app-pub-2289573527937577~7422350827"
-                }
-              },
-              "android": {
-                "package": "com.piyasapro.app",
-                "config": {
-                   "googleMobileAdsAppId": "ca-app-pub-2289573527937577~7422350827"
-                }
-              },
-              "plugins": [
-                [
-                  "react-native-google-mobile-ads",
-                  {
-                    "androidAppId": "ca-app-pub-2289573527937577~7422350827",
-                    "iosAppId": "ca-app-pub-2289573527937577~7422350827"
-                  }
-                ],
-                "expo-build-properties"
-              ],
-              "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
-            }
-          }
-          EOF
-
-      - name: ⚙️ Babel Config Oluştur
+      # 8. CONFIG FILES
+      - name: ⚙️ Config Dosyaları
         run: |
           cat > babel.config.js <<'EOF'
-          module.exports = function(api) {
-            api.cache(true);
-            return {
-              presets: ['babel-preset-expo'],
-            };
-          };
+          module.exports = function(api) { api.cache(true); return { presets: ['babel-preset-expo'] }; };
           EOF
-      
-      - name: ⚙️ Metro Config Oluştur
-        run: |
           cat > metro.config.js <<'EOF'
-          const { getDefaultConfig } = require('expo/metro-config');
-          const config = getDefaultConfig(__dirname);
-          module.exports = config;
+          const { getDefaultConfig } = require('expo/metro-config'); const config = getDefaultConfig(__dirname); module.exports = config;
           EOF
-
-      - name: 🖼 Assets Oluştur
-        run: |
-          mkdir -p assets
-          touch assets/icon.png assets/splash.png assets/adaptive-icon.png assets/favicon.png
 
       - name: 📦 Paket Kurulumu
         run: |
           npm install -g eas-cli
           npm install --legacy-peer-deps
 
-      # --- İŞTE SİHİRLİ KOMUT BURASI ---
-      # Artık 'update' değil 'build' yapıyoruz.
-      # non-interactive: Apple hesabını sormadan, önceden tanımlı hesabı kullanır.
+      # --- BUILD START ---
       - name: 🏗 IPA Oluştur (Build)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
