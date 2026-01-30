@@ -1,4 +1,4 @@
-name: Piyasa Pro SDK 54 Update
+name: EminXtream Fix Update
 
 on:
   push:
@@ -13,29 +13,39 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK (Eski config dosyalarını da siler)
+      # 1. TEMİZLİK
       - name: 🧹 Ön Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js
 
       - name: 🏗 Node.js Kurulumu
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 18
 
-      # 2. PACKAGE.JSON (Sürümler Firebase v21.6.1'e sabitlendi)
+      # 2. METRO CONFIG (BU ADIM ÇÖKME SORUNUNU ÇÖZER)
+      - name: ⚙️ Metro Config Oluştur
+        run: |
+          cat > metro.config.js <<'JS'
+          const { getDefaultConfig } = require('expo/metro-config');
+          const config = getDefaultConfig(__dirname);
+          config.resolver.sourceExts.push('cjs');
+          module.exports = config;
+          JS
+
+      # 3. PACKAGE.JSON (Sürümleri Sabitledik)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'JSON'
           {
-            "name": "piyasa-pro",
+            "name": "eminxtream",
             "version": "1.0.0",
             "main": "node_modules/expo/AppEntry.js",
             "dependencies": {
               "expo": "~54.0.0",
               "react": "19.0.0",
               "react-native": "0.78.0",
-              "@react-native-firebase/app": "21.6.1",
-              "@react-native-firebase/remote-config": "21.6.1",
+              "@react-native-firebase/app": "19.2.2",
+              "@react-native-firebase/remote-config": "19.2.2",
               "expo-status-bar": "~2.1.0",
               "expo-constants": "~18.0.0",
               "expo-font": "~14.0.0",
@@ -57,38 +67,29 @@ jobs:
           }
           JSON
 
-      # 3. METRO CONFIG (BU ADIM OLMADAN HATA ALIRSIN)
-      # Firebase'in 'Directory import' hatasını çözen kritik dosya
-      - name: ⚙️ Metro Config Oluştur (Firebase Fix)
-        run: |
-          cat > metro.config.js <<'JS'
-          const { getDefaultConfig } = require('expo/metro-config');
-          const config = getDefaultConfig(__dirname);
-          config.resolver.sourceExts.push('cjs');
-          module.exports = config;
-          JS
-
-      # 4. APP.JSON (Piyasa Pro Ayarları)
+      # 4. APP.JSON (İsim Karışıklığını Önlemek İçin 'eminxtream' yaptık)
+      # Eğer proje EAS üzerinde 'eminxtream' ise slug öyle kalmalı.
+      # Ancak görünen isim (name) 'Piyasa Pro' olabilir.
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'JSON'
           {
             "expo": {
               "name": "Piyasa Pro",
-              "slug": "piyasa-pro",
+              "slug": "eminxtream",
               "version": "1.0.0",
               "orientation": "portrait",
               "userInterfaceStyle": "dark",
               "assetBundlePatterns": ["**/*"],
               "ios": {
-                "bundleIdentifier": "com.piyasapro.app",
+                "bundleIdentifier": "com.eminxtream.app",
                 "googleServicesFile": "./GoogleService-Info.plist",
                 "infoPlist": {
                   "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
                 }
               },
               "android": {
-                "package": "com.piyasapro.app",
+                "package": "com.eminxtream.app",
                 "googleServicesFile": "./google-services.json",
                 "usesCleartextTraffic": true
               },
@@ -120,4 +121,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Firebase Fix & SDK 54 Update" --non-interactive
+          eas update --branch preview --message "Fixing Config Crash" --non-interactive
