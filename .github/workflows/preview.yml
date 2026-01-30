@@ -1,4 +1,4 @@
-name: EminXtream FINAL WORKING
+name: EminXtream Premium UI
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK: Her şeyi silip tertemiz başlıyoruz
+      # 1. TEMİZLİK
       - name: 🧹 Derin Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js App.js GoogleService-Info.plist
 
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 20
 
-      # 2. PACKAGE.JSON (SADECE ÇALIŞAN PARÇALAR - FIREBASE YOK)
+      # 2. PACKAGE.JSON
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -35,6 +35,7 @@ jobs:
               "react": "19.0.0",
               "react-native": "0.78.0",
               "expo-status-bar": "~2.1.0",
+              "expo-linear-gradient": "~14.0.0", 
               "fs-extra": "^11.2.0"
             },
             "devDependencies": {
@@ -45,7 +46,7 @@ jobs:
           }
           EOF
 
-      # 3. BABEL CONFIG (Hata Engelleyici)
+      # 3. BABEL CONFIG
       - name: ⚙️ Babel Config Oluştur
         run: |
           cat > babel.config.js <<'EOF'
@@ -66,80 +67,195 @@ jobs:
           module.exports = config;
           EOF
 
-      # 5. APP.JS (DİREKT LİNK - EN SAĞLAM YÖNTEM)
-      - name: 📱 App.js Oluştur
+      # 5. APP.JS (PREMIUM TASARIM KODU)
+      - name: 📱 App.js Oluştur (Premium UI)
         run: |
           cat > App.js <<'EOF'
-          import React, { useState, useEffect } from 'react';
-          import { Text, View, FlatList, SafeAreaView, ActivityIndicator, StatusBar, TouchableOpacity } from 'react-native';
+          import React, { useState, useEffect, useCallback } from 'react';
+          import { 
+            Text, View, FlatList, SafeAreaView, ActivityIndicator, 
+            StatusBar, TouchableOpacity, StyleSheet, Platform, RefreshControl 
+          } from 'react-native';
 
-          // Link değişirse burayı güncelleyip tekrar eas update yaparsın (Firebase gerekmez)
+          // RENK PALETİ (Premium Dark Theme)
+          const COLORS = {
+            bg: '#0F172A',       // Derin Gece Mavisi/Siyahı
+            card: '#1E293B',     // Kart Rengi
+            gold: '#F59E0B',     // Altın/Amber Rengi
+            text: '#F1F5F9',     // Kırık Beyaz
+            subText: '#94A3B8',  // Soluk Gri
+            green: '#10B981',    // Yükseliş Yeşili
+            border: '#334155'    // İnce Çerçeve Rengi
+          };
+
           const URL = "https://imdatgel.site/harem/piyasa_cache.json";
 
           export default function App() {
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
-            const [msg, setMsg] = useState("Veriler Yükleniyor...");
+            const [refreshing, setRefreshing] = useState(false);
+            const [lastUpdate, setLastUpdate] = useState("");
 
-            const loadData = async () => {
-              setLoading(true);
-              setMsg("Bağlanıyor...");
+            const loadData = useCallback(async () => {
               try {
                 const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
-                if (!resp.ok) throw new Error("Hata: " + resp.status);
-                
                 const json = await resp.json();
                 if (Array.isArray(json)) {
                   setData(json);
-                  setMsg("");
-                } else {
-                  setMsg("Format Hatası: Liste gelmedi");
+                  const now = new Date();
+                  setLastUpdate(now.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'}));
                 }
               } catch (e) {
-                setMsg("HATA: " + e.message);
+                console.error(e);
               } finally {
                 setLoading(false);
+                setRefreshing(false);
               }
-            };
+            }, []);
 
             useEffect(() => { loadData(); }, []);
 
+            const onRefresh = () => {
+              setRefreshing(true);
+              loadData();
+            };
+
+            // ÖZEL KART TASARIMI
+            const renderItem = ({ item }) => {
+              // Sembol ismini güzelleştir (ALTIN -> Altın, USDTRY -> Dolar/TL gibi yapılabilir ama şimdilik temizleyelim)
+              const symbol = item.k.replace('_', ' ');
+              const time = item.t?.split(' ')[1] || '--:--';
+              
+              return (
+                <View style={styles.card}>
+                  {/* SOL TARAF: İSİM VE SAAT */}
+                  <View style={styles.leftInfo}>
+                    <View style={styles.iconPlaceholder}>
+                      <Text style={styles.iconText}>{symbol.substring(0,1)}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.symbolName}>{symbol}</Text>
+                      <Text style={styles.timeText}>🕒 {time}</Text>
+                    </View>
+                  </View>
+
+                  {/* SAĞ TARAF: FİYATLAR */}
+                  <View style={styles.rightInfo}>
+                    <Text style={styles.sellPrice}>{item.s} <Text style={styles.currency}>₺</Text></Text>
+                    <View style={styles.buyBadge}>
+                      <Text style={styles.buyLabel}>ALIŞ: </Text>
+                      <Text style={styles.buyPrice}>{item.a}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            };
+
             return (
-              <SafeAreaView style={{flex:1, backgroundColor:'#000', paddingTop: 40}}>
-                <StatusBar barStyle="light-content" />
-                <View style={{padding:20, borderBottomWidth:1, borderColor:'#333', flexDirection:'row', justifyContent:'space-between'}}>
-                  <Text style={{color:'#FFD60A', fontSize:24, fontWeight:'bold'}}>Piyasa Pro</Text>
-                  <TouchableOpacity onPress={loadData} style={{backgroundColor:'#333', padding:10, borderRadius:5}}>
-                     <Text style={{color:'#FFF'}}>YENİLE</Text>
-                  </TouchableOpacity>
+              <SafeAreaView style={styles.container}>
+                <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+                
+                {/* HEADER ALANI */}
+                <View style={styles.header}>
+                  <View>
+                    <Text style={styles.headerTitle}>Piyasa<Text style={{color: COLORS.gold}}>Pro</Text></Text>
+                    <Text style={styles.headerSub}>Canlı Döviz & Altın</Text>
+                  </View>
+                  <View style={styles.statusBadge}>
+                    <View style={styles.dot} />
+                    <Text style={styles.statusText}>{lastUpdate ? lastUpdate : '...'}</Text>
+                  </View>
                 </View>
 
-                {msg ? <Text style={{color:'red', textAlign:'center', margin:20, fontSize:16}}>{msg}</Text> : null}
-
-                {loading ? <ActivityIndicator size="large" color="#FFD60A" /> : (
+                {/* LİSTE ALANI */}
+                {loading ? (
+                  <View style={styles.center}>
+                    <ActivityIndicator size="large" color={COLORS.gold} />
+                    <Text style={{color: COLORS.subText, marginTop: 10}}>Piyasa verileri alınıyor...</Text>
+                  </View>
+                ) : (
                   <FlatList
                     data={data}
                     keyExtractor={(item, index) => index.toString()}
-                    renderItem={({ item }) => (
-                      <View style={{flexDirection:'row', justifyContent:'space-between', padding:15, borderBottomWidth:1, borderColor:'#222'}}>
-                        <View>
-                          <Text style={{color:'#FFF', fontSize:16, fontWeight:'bold'}}>{item.k}</Text>
-                          <Text style={{color:'#888'}}>{item.t?.split(' ')[1]}</Text>
-                        </View>
-                        <View style={{alignItems:'flex-end'}}>
-                           <Text style={{color:'#FFD60A', fontSize:18, fontWeight:'bold'}}>{item.s}</Text>
-                           <Text style={{color:'#888'}}>Alış: {item.a}</Text>
-                        </View>
-                      </View>
-                    )}
+                    renderItem={renderItem}
+                    contentContainerStyle={styles.listContent}
+                    refreshControl={
+                      <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.gold} />
+                    }
                   />
                 )}
               </SafeAreaView>
             );
           }
+
+          const styles = StyleSheet.create({
+            container: { flex: 1, backgroundColor: COLORS.bg },
+            center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+            
+            // Header Stilleri
+            header: {
+              paddingHorizontal: 20,
+              paddingVertical: 15,
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderBottomWidth: 1,
+              borderBottomColor: COLORS.border,
+              backgroundColor: COLORS.bg,
+              marginBottom: 10
+            },
+            headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: 0.5 },
+            headerSub: { fontSize: 12, color: COLORS.subText, fontWeight: '500' },
+            statusBadge: { 
+              flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, 
+              paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border 
+            },
+            dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.green, marginRight: 6 },
+            statusText: { color: COLORS.text, fontSize: 12, fontWeight: 'bold' },
+
+            // Liste Stilleri
+            listContent: { paddingHorizontal: 16, paddingBottom: 20 },
+            
+            // Kart Stilleri
+            card: {
+              backgroundColor: COLORS.card,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 12,
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              // Gölge Efekti (iOS & Android)
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 5,
+              elevation: 4,
+              borderWidth: 1,
+              borderColor: COLORS.border
+            },
+            leftInfo: { flexDirection: 'row', alignItems: 'center' },
+            iconPlaceholder: {
+              width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(245, 158, 11, 0.15)',
+              justifyContent: 'center', alignItems: 'center', marginRight: 12
+            },
+            iconText: { color: COLORS.gold, fontSize: 18, fontWeight: 'bold' },
+            symbolName: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 2 },
+            timeText: { fontSize: 11, color: COLORS.subText },
+            
+            rightInfo: { alignItems: 'flex-end' },
+            sellPrice: { fontSize: 18, fontWeight: 'bold', color: COLORS.text },
+            currency: { fontSize: 14, color: COLORS.gold },
+            buyBadge: { 
+              flexDirection: 'row', marginTop: 4, backgroundColor: 'rgba(255,255,255,0.05)', 
+              paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 
+            },
+            buyLabel: { fontSize: 10, color: COLORS.subText, fontWeight: '600' },
+            buyPrice: { fontSize: 10, color: COLORS.text, fontWeight: '700' }
+          });
           EOF
 
-      # 6. APP.JSON (Piyasa Pro Ayarları)
+      # 6. APP.JSON
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
@@ -180,4 +296,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Back to Rescue Mode" --non-interactive
+          eas update --branch preview --message "New Premium Dark UI" --non-interactive
