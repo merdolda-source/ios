@@ -1,4 +1,4 @@
-name: EminXtream Ultimate Pro
+name: EminXtream Final Fix & AdMob Setup
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK (Her şeyi sıfırla)
+      # 1. TEMİZLİK
       - name: 🧹 Derin Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js App.js GoogleService-Info.plist
 
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 20
 
-      # 2. PACKAGE.JSON (Gerekli Paketler)
+      # 2. PACKAGE.JSON
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -46,7 +46,7 @@ jobs:
           }
           EOF
 
-      # 3. BABEL CONFIG (Derleme için şart)
+      # 3. BABEL CONFIG
       - name: ⚙️ Babel Config Oluştur
         run: |
           cat > babel.config.js <<'EOF'
@@ -67,11 +67,11 @@ jobs:
           module.exports = config;
           EOF
 
-      # 5. APP.JS (FULL ÖZELLİKLİ & HATASIZ KOD)
+      # 5. APP.JS (DİL DÜZELTİLDİ + EKRAN KAYMASI GİDERİLDİ + REKLAM ID'LERİ EKLENDİ)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
-          import React, { useState, useEffect, useRef } from 'react';
+          import React, { useState, useEffect } from 'react';
           import { 
             Text, View, FlatList, SafeAreaView, ActivityIndicator, 
             StatusBar, TouchableOpacity, StyleSheet, Modal, Platform, 
@@ -79,11 +79,15 @@ jobs:
           } from 'react-native';
           import { Ionicons } from '@expo/vector-icons';
 
+          // --- ADMOB IDLERİ (Config İçin Hazır) ---
+          // App ID: ca-app-pub-2289573527937577~7422350827
+          const BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
+          const INTERSTITIAL_ID = "ca-app-pub-2289573527937577/6951577531";
+
           const URL = "https://imdatgel.site/harem/piyasa_cache.json";
-          const { width } = Dimensions.get('window');
 
           export default function App() {
-            // --- STATE YÖNETİMİ ---
+            // --- STATE ---
             const [data, setData] = useState([]);
             const [prevData, setPrevData] = useState({}); 
             const [loading, setLoading] = useState(true);
@@ -91,7 +95,7 @@ jobs:
             const [isDarkMode, setIsDarkMode] = useState(true); 
             const [currentTime, setCurrentTime] = useState(""); 
             
-            // Reklam Sayacı
+            // Reklam Tetikleyiciler
             const [refreshCount, setRefreshCount] = useState(0); 
             const [showInterstitial, setShowInterstitial] = useState(false); 
 
@@ -112,7 +116,7 @@ jobs:
               banner: '#E2E8F0', modal: '#FFFFFF', input: '#F1F5F9'
             };
 
-            // --- 1. CANLI SAAT ---
+            // --- SAAT ---
             useEffect(() => {
               const timer = setInterval(() => {
                 setCurrentTime(new Date().toLocaleTimeString('tr-TR'));
@@ -120,7 +124,7 @@ jobs:
               return () => clearInterval(timer);
             }, []);
 
-            // --- 2. VERİ ÇEKME ---
+            // --- VERİ ÇEKME ---
             const loadData = async (isAuto = false) => {
               if (!isAuto) setLoading(true);
               
@@ -136,11 +140,11 @@ jobs:
                     return json;
                   });
 
-                  // Reklam Sayacı (4 yenilemede 1 reklam)
+                  // Geçiş Reklamı Mantığı (4 yenilemede 1)
                   setRefreshCount(prev => {
                     const newVal = prev + 1;
                     if (newVal > 0 && newVal % 4 === 0) {
-                      setTimeout(() => setShowInterstitial(true), 1500);
+                      setTimeout(() => setShowInterstitial(true), 1000);
                     }
                     return newVal;
                   });
@@ -153,7 +157,6 @@ jobs:
               }
             };
 
-            // Otomatik Yenileme (30 sn)
             useEffect(() => {
               loadData(); 
               const interval = setInterval(() => loadData(true), 30000);
@@ -165,7 +168,7 @@ jobs:
               loadData(true);
             };
 
-            // --- HESAP MAKİNESİ ---
+            // --- HESAPLA ---
             const openCalculator = (item) => {
               setSelectedItem(item);
               setAmount('');
@@ -186,7 +189,7 @@ jobs:
               }
             };
 
-            // --- İBRE (YÖN) ---
+            // --- YÖN OKLARI ---
             const getTrendIcon = (symbol, currentPriceStr) => {
               const current = parseFloat(currentPriceStr);
               const old = prevData[symbol];
@@ -196,17 +199,18 @@ jobs:
               return { icon: 'remove', color: theme.subText };
             };
 
-            // --- KART ---
             const renderItem = ({ item }) => {
               const trend = getTrendIcon(item.k, item.s);
               const symbolClean = item.k.replace('_', ' ');
 
-              // activeOpacity={0.7} düzeltildi (Syntax Error buradaydı)
               return (
-                <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
+                <TouchableOpacity 
+                  onPress={() => openCalculator(item)} 
+                  activeOpacity={0.7}
+                  // Tuş algılama sorununu çözen ayar:
+                  delayPressIn={0}
+                >
                   <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                    
-                    {/* SOL: İkon & İsim */}
                     <View style={{flexDirection:'row', alignItems:'center'}}>
                       <View style={[styles.iconBox, { backgroundColor: isDarkMode ? 'rgba(245,158,11,0.2)' : 'rgba(217,119,6,0.1)' }]}>
                         <Text style={{fontSize:18, fontWeight:'bold', color: theme.gold}}>
@@ -219,7 +223,6 @@ jobs:
                       </View>
                     </View>
 
-                    {/* SAĞ: Fiyat & İbre */}
                     <View style={{alignItems:'flex-end'}}>
                       <View style={{flexDirection:'row', alignItems:'center'}}>
                         <Text style={{color: theme.text, fontSize:18, fontWeight:'bold', marginRight: 5}}>
@@ -235,14 +238,16 @@ jobs:
             };
 
             return (
-              <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-                <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+              <View style={[styles.container, { backgroundColor: theme.bg }]}>
+                {/* SafeAreaView Yerine Özel View Kullanarak Kaymaları Önledik */}
+                <View style={{ height: Platform.OS === 'android' ? StatusBar.currentHeight : 40, backgroundColor: theme.bg }} />
+                <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.bg} />
 
                 {/* HEADER */}
                 <View style={[styles.header, { borderBottomColor: theme.border }]}>
                   <View>
                     <Text style={[styles.headerTitle, { color: theme.text }]}>Piyasa<Text style={{color: theme.gold}}>Pro</Text></Text>
-                    <Text style={{color: theme.subText, fontSize: 10}}>Hesaplamak için karta tıkla</Text>
+                    <Text style={{color: theme.subText, fontSize: 11}}>Hesaplamak için dokunun</Text>
                   </View>
                   <View style={{flexDirection:'row', alignItems:'center'}}>
                     <Text style={[styles.clock, { color: theme.gold, backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
@@ -267,11 +272,11 @@ jobs:
                   />
                 )}
 
-                {/* BANNER REKLAM (Test) */}
+                {/* BANNER (Hazırlık) */}
                 <View style={[styles.bannerContainer, { backgroundColor: theme.banner, borderTopColor: theme.border }]}>
-                  <Text style={{color: theme.subText, fontSize: 9, marginBottom: 2}}>REKLAM ALANI</Text>
-                  <View style={{width: 320, height: 50, backgroundColor: isDarkMode ? '#333' : '#CCC', justifyContent:'center', alignItems:'center'}}>
-                    <Text style={{color: isDarkMode ? '#FFF' : '#000', fontWeight:'bold', letterSpacing:1}}>BANNER ADS</Text>
+                  <Text style={{color: theme.subText, fontSize: 8, marginBottom: 2}}>REKLAM ID: ...{BANNER_ID.slice(-4)}</Text>
+                  <View style={{width: 320, height: 50, backgroundColor: isDarkMode ? '#222' : '#DDD', justifyContent:'center', alignItems:'center'}}>
+                     <Text style={{color: theme.text, fontWeight:'bold', fontSize: 10}}>BANNER REKLAM ALANI</Text>
                   </View>
                 </View>
 
@@ -284,9 +289,12 @@ jobs:
                       </TouchableOpacity>
                       <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
                         <Ionicons name="star" size={50} color={theme.gold} style={{marginBottom:10}} />
-                        <Text style={{color: theme.text, fontSize:20, fontWeight:'bold', marginBottom:10}}>REKLAM</Text>
-                        <Text style={{color: theme.subText, textAlign:'center'}}>
-                          Bu bir test geçiş reklamıdır.{"\n"}Gerçek uygulamada burada AdMob çıkacak.
+                        <Text style={{color: theme.text, fontSize:20, fontWeight:'bold', marginBottom:10}}>GEÇİŞ REKLAMI</Text>
+                        <Text style={{color: theme.subText, fontSize: 10, textAlign:'center'}}>
+                          ID: {INTERSTITIAL_ID}
+                        </Text>
+                        <Text style={{color: theme.text, marginTop: 10, textAlign:'center'}}>
+                          Bu alan yeni Build alındığında{"\n"}gerçek reklamla değişecektir.
                         </Text>
                       </View>
                     </View>
@@ -298,17 +306,15 @@ jobs:
                   <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => Keyboard.dismiss()}>
                     <View style={[styles.calcContent, { backgroundColor: theme.modal, borderColor: theme.gold }]}>
                       
-                      {/* Başlık */}
                       <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
                         <Text style={{color: theme.text, fontSize:18, fontWeight:'bold'}}>
                           {selectedItem?.k.replace('_', ' ')} Hesapla
                         </Text>
                         <TouchableOpacity onPress={() => setCalcVisible(false)}>
-                          <Ionicons name="close-circle" size={28} color={theme.red} />
+                          <Ionicons name="close-circle" size={30} color={theme.red} />
                         </TouchableOpacity>
                       </View>
 
-                      {/* Bilgiler */}
                       <Text style={{color: theme.subText}}>Birim Fiyat:</Text>
                       <Text style={{color: theme.gold, fontSize:22, fontWeight:'bold', marginBottom:15}}>{selectedItem?.s} ₺</Text>
 
@@ -323,7 +329,6 @@ jobs:
                         autoFocus={true}
                       />
 
-                      {/* Sonuç */}
                       {calcResult && (
                         <View style={{marginTop:20, padding:15, backgroundColor: theme.green, borderRadius:12, alignItems:'center'}}>
                           <Text style={{color:'#FFF', fontSize:12, fontWeight:'bold', opacity:0.8}}>TOPLAM TUTAR</Text>
@@ -334,7 +339,7 @@ jobs:
                   </TouchableOpacity>
                 </Modal>
 
-              </SafeAreaView>
+              </View>
             );
           }
 
@@ -347,10 +352,8 @@ jobs:
             card: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, marginHorizontal: 16, marginBottom: 10, borderRadius: 16, borderWidth: 1, shadowColor: "#000", shadowOffset: {width:0, height:2}, shadowOpacity:0.1, elevation:3 },
             iconBox: { width: 42, height: 42, borderRadius: 12, justifyContent:'center', alignItems:'center', marginRight:12 },
             
-            // Banner
             bannerContainer: { position: 'absolute', bottom: 0, width: '100%', height: 75, justifyContent: 'center', alignItems: 'center', borderTopWidth: 1, paddingBottom: Platform.OS === 'ios' ? 15 : 0 },
             
-            // Modals
             modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
             interstitialBox: { width: '85%', height: '50%', borderRadius: 20, padding: 20 },
             closeBtn: { alignSelf: 'flex-end', backgroundColor: '#EF4444', borderRadius: 20, padding: 4 },
@@ -360,7 +363,7 @@ jobs:
           });
           EOF
 
-      # 6. APP.JSON
+      # 6. APP.JSON (ADMOB CONFIG EKLENDİ)
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
@@ -375,10 +378,16 @@ jobs:
                 "bundleIdentifier": "com.piyasapro.app",
                 "infoPlist": {
                   "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+                },
+                "config": {
+                  "googleMobileAdsAppId": "ca-app-pub-2289573527937577~7422350827"
                 }
               },
               "android": {
-                "package": "com.piyasapro.app"
+                "package": "com.piyasapro.app",
+                "config": {
+                   "googleMobileAdsAppId": "ca-app-pub-2289573527937577~7422350827"
+                }
               },
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
               "runtimeVersion": { "policy": "appVersion" },
@@ -401,4 +410,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Ultimate Pro: Calculator Fix" --non-interactive
+          eas update --branch preview --message "Layout Fix & AdMob Setup" --non-interactive
