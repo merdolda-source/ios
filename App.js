@@ -7,62 +7,70 @@ import {
   SafeAreaView,
   ActivityIndicator,
   StatusBar,
+  TextInput,
   TouchableOpacity
 } from 'react-native';
+import remoteConfig from '@react-native-firebase/remote-config';
 
 const COLORS = {
-  bg: '#050716',
-  card: '#0b1120',
-  border: 'rgba(251, 191, 36, 0.2)',
-  gold: '#fbbf24',
-  text: '#e5e7eb',
-  muted: '#9ca3af',
-  green: '#22c55e'
+  bg: '#000000',
+  card: '#1C1C1E',
+  border: '#2C2C2E',
+  gold: '#FFD60A',
+  green: '#32D74B',
+  red: '#FF453A',
+  text: '#FFFFFF',
+  muted: '#8E8E93'
 };
 
 export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Veriyi Google üzerinden güvenli ve engelsiz çeker
-  const fetchData = async () => {
-    try {
-      // canlidoviz.com'u doğrudan çekemediğimiz için Google Apps Script köprüsü kullanıyoruz.
-      // Bu URL herkese açık, engelsiz bir JSON çıktısı verir.
-      const PROXY_URL = "https://script.google.com/macros/s/AKfycbz_XmO6I7fQ6K6Z8X5-I0P3I0/exec"; 
-      
-      const response = await fetch(PROXY_URL);
-      const json = await response.json();
-      
-      // Gelen veriyi işle
-      if (json && json.serbest) {
-        setData(json.serbest);
-      }
-    } catch (error) {
-      console.error("Veri güncellenemedi:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 30000); // 30 saniyede bir otomatik günceller
+    const initRemoteConfig = async () => {
+      try {
+        // iOS için anlık veri çekme ayarı
+        await remoteConfig().setConfigSettings({ minimumFetchIntervalMillis: 0 });
+        // Varsayılan linki tanımlıyoruz
+        await remoteConfig().setDefaults({ json_url: 'https://imdatgel.site/harem/piyasa_cache.json' });
+        
+        await remoteConfig().fetchAndActivate();
+        const url = remoteConfig().getValue('json_url').asString();
+        loadData(url);
+      } catch (e) {
+        loadData('https://imdatgel.site/harem/piyasa_cache.json');
+      }
+    };
+
+    initRemoteConfig();
+    const interval = setInterval(() => initRemoteConfig(), 60000); // Dakikada bir kontrol
     return () => clearInterval(interval);
   }, []);
 
+  const loadData = async (url) => {
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      console.log("Hata:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderItem = ({ item }) => (
     <View style={styles.card}>
-      <View style={styles.infoSide}>
-        <Text style={styles.goldName}>{item.altin_adi || "Altın Birimi"}</Text>
-        <Text style={styles.subText}>Alış: {item.alis} ₺</Text>
+      <View style={styles.left}>
+        <Text style={styles.symbol}>{item.k.replace('_', ' ')}</Text>
+        <Text style={styles.time}>{item.t.split(' ')[1]}</Text>
       </View>
-      <View style={styles.priceSide}>
-        <Text style={styles.priceText}>{item.satis} ₺</Text>
-        <View style={styles.changeBadge}>
-          <Text style={styles.changeText}>%{item.yuksek ? "0.12" : "0.00"}</Text>
+      <View style={styles.right}>
+        <Text style={styles.price}>{parseFloat(item.s).toFixed(2)} ₺</Text>
+        <View style={styles.buyBadge}>
+          <Text style={styles.buyText}>Alış: {parseFloat(item.a).toFixed(2)}</Text>
         </View>
       </View>
     </View>
@@ -71,30 +79,32 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>ALTIN BORSASI</Text>
-          <Text style={styles.subtitle}>Canlı & Güncel Veriler</Text>
+          <Text style={styles.title}>Piyasa Pro</Text>
+          <Text style={styles.subTitle}>iOS Live Terminal</Text>
         </View>
-        <TouchableOpacity style={styles.refreshBtn} onPress={() => {setLoading(true); fetchData();}}>
-          <Text style={{color: COLORS.gold, fontWeight: 'bold'}}>YENİLE</Text>
+        <TouchableOpacity style={styles.statusBox} onPress={() => {setLoading(true); loadData('https://imdatgel.site/harem/piyasa_cache.json');}}>
+          <View style={styles.dot} />
+          <Text style={styles.statusText}>CANLI</Text>
         </TouchableOpacity>
       </View>
 
+      <TextInput 
+        style={styles.search}
+        placeholder="Sembol filtrele..."
+        placeholderTextColor={COLORS.muted}
+        onChangeText={setSearch}
+      />
+
       {loading ? (
-        <View style={styles.loader}>
-          <ActivityIndicator size="large" color={COLORS.gold} />
-          <Text style={{color: COLORS.muted, marginTop: 10}}>Veriler alınıyor...</Text>
-        </View>
+        <View style={styles.center}><ActivityIndicator color={COLORS.gold} /></View>
       ) : (
         <FlatList
-          data={data}
-          keyExtractor={(item, index) => index.toString()}
+          data={data.filter(i => i.k.includes(search.toUpperCase()))}
+          keyExtractor={item => item.k}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 16 }}
-          refreshing={refreshing}
-          onRefresh={() => {setRefreshing(true); fetchData();}}
         />
       )}
     </SafeAreaView>
@@ -103,45 +113,20 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { 
-    padding: 20, 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1e293b'
-  },
-  title: { color: COLORS.gold, fontSize: 24, fontWeight: '900', letterSpacing: 1 },
-  subtitle: { color: COLORS.muted, fontSize: 12 },
-  refreshBtn: { padding: 8, borderRadius: 8, borderWidth: 1, borderColor: COLORS.gold },
-  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5
-  },
-  infoSide: { flex: 1 },
-  goldName: { color: COLORS.text, fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-  subText: { color: COLORS.muted, fontSize: 12 },
-  priceSide: { alignItems: 'flex-end' },
-  priceText: { color: '#fff', fontSize: 18, fontWeight: '900' },
-  changeBadge: { 
-    backgroundColor: 'rgba(34, 197, 94, 0.15)', 
-    paddingHorizontal: 6, 
-    paddingVertical: 2, 
-    borderRadius: 4, 
-    marginTop: 4 
-  },
-  changeText: { color: COLORS.green, fontSize: 10, fontWeight: 'bold' }
+  header: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: 32, fontWeight: '800', color: COLORS.text, letterSpacing: -1 },
+  subTitle: { fontSize: 12, color: COLORS.gold, fontWeight: 'bold', textTransform: 'uppercase' },
+  statusBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1C1E', padding: 8, borderRadius: 12 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.green, marginRight: 6 },
+  statusText: { color: COLORS.green, fontSize: 10, fontWeight: '900' },
+  search: { backgroundColor: '#1C1C1E', color: '#FFF', marginHorizontal: 16, padding: 15, borderRadius: 14, marginBottom: 10 },
+  card: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: COLORS.card, padding: 20, borderRadius: 20, marginBottom: 12, borderWidth: 1, borderColor: COLORS.border },
+  left: { justifyContent: 'center' },
+  symbol: { color: '#FFF', fontSize: 18, fontWeight: '700' },
+  time: { color: COLORS.muted, fontSize: 11, marginTop: 4 },
+  right: { alignItems: 'flex-end' },
+  price: { color: '#FFF', fontSize: 20, fontWeight: '800' },
+  buyBadge: { marginTop: 6, backgroundColor: '#2C2C2E', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  buyText: { color: COLORS.muted, fontSize: 11, fontWeight: '600' },
+  center: { flex: 1, justifyContent: 'center' }
 });
