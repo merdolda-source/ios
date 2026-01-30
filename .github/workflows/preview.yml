@@ -1,4 +1,4 @@
-name: EminXtream Fix Update
+name: EminXtream Fix Final
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 18
 
-      # 2. METRO CONFIG (BU ADIM ÇÖKME SORUNUNU ÇÖZER)
+      # 2. METRO CONFIG (ESM/CJS Hatalarını Önler)
       - name: ⚙️ Metro Config Oluştur
         run: |
           cat > metro.config.js <<'JS'
@@ -32,7 +32,7 @@ jobs:
           module.exports = config;
           JS
 
-      # 3. PACKAGE.JSON (Sürümleri Sabitledik)
+      # 3. PACKAGE.JSON (Firebase v19 - Stabil Sürüm)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'JSON'
@@ -67,9 +67,9 @@ jobs:
           }
           JSON
 
-      # 4. APP.JSON (İsim Karışıklığını Önlemek İçin 'eminxtream' yaptık)
-      # Eğer proje EAS üzerinde 'eminxtream' ise slug öyle kalmalı.
-      # Ancak görünen isim (name) 'Piyasa Pro' olabilir.
+      # 4. APP.JSON - KRİTİK DÜZELTME BURADA YAPILDI
+      # Hata Çözümü: "plugins" listesinden "remote-config" ÇIKARILDI.
+      # Sadece "@react-native-firebase/app" kalmalı.
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'JSON'
@@ -94,8 +94,7 @@ jobs:
                 "usesCleartextTraffic": true
               },
               "plugins": [
-                "@react-native-firebase/app",
-                "@react-native-firebase/remote-config"
+                "@react-native-firebase/app"
               ],
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
               "runtimeVersion": { "policy": "appVersion" },
@@ -121,4 +120,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Fixing Config Crash" --non-interactive
+          eas update --branch preview --message "Fixed Plugin Config" --non-interactive
