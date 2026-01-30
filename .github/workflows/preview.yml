@@ -1,4 +1,4 @@
-name: ANLIK PİYASA - FIX SPLASH FREEZE
+name: ANLIK PİYASA - FULL RESET (GUARANTEED OPEN)
 
 on:
   push:
@@ -6,14 +6,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish-fix:
+  publish-final-fix:
     runs-on: ubuntu-latest
 
     steps:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK
+      # 1. TAM TEMİZLİK (Eski kalan her şeyi siler)
       - name: 🧹 Derin Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js App.js GoogleService-Info.plist credentials.json
 
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 20
 
-      # 2. GÖRSELLER (Native Splash için)
+      # 2. GÖRSELLER
       - name: 🎨 Görselleri Oluştur
         run: |
           sudo apt-get install imagemagick -y
@@ -31,7 +31,7 @@ jobs:
           # İkon
           curl -L -o assets/icon.png "https://i.ibb.co/99mj6zkx/71cf52be-22d6-4382-8a4e-bb42ea43796e.png"
           
-          # Splash (Siyah Zemin + Gold Yazı) - Native olarak kullanılacak
+          # Splash (Native için de var ama JS ile de çizeceğiz)
           convert -size 1242x2688 xc:"#000000" \
             -fill "#F59E0B" -font DejaVu-Sans-Bold -gravity center -pointsize 100 -annotate 0 "ANLIK PİYASA" \
             assets/splash.png
@@ -39,7 +39,7 @@ jobs:
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 3. PACKAGE.JSON
+      # 3. PACKAGE.JSON (Splash kütüphanesini sildim, JS ile yapacağız)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -56,7 +56,6 @@ jobs:
               "@expo/vector-icons": "~14.0.0",
               "react-native-safe-area-context": "4.12.0",
               "expo-localization": "~16.0.0",
-              "expo-splash-screen": "~0.27.0", 
               "i18n-js": "^4.4.3"
             },
             "devDependencies": {
@@ -77,11 +76,11 @@ jobs:
           const { getDefaultConfig } = require('expo/metro-config'); const config = getDefaultConfig(__dirname); module.exports = config;
           EOF
 
-      # 5. APP.JS (GARANTİLİ AÇILIŞ MANTIĞI)
+      # 5. APP.JS (TAKILMA RİSKİ OLMAYAN VERSİYON)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
-          import React, { useState, useEffect, useRef, useCallback } from 'react';
+          import React, { useState, useEffect, useRef } from 'react';
           import { 
             Text, View, FlatList, ActivityIndicator, StatusBar, TouchableOpacity, 
             StyleSheet, Modal, Platform, TextInput, Keyboard, RefreshControl, 
@@ -89,11 +88,11 @@ jobs:
           } from 'react-native';
           import { Ionicons } from '@expo/vector-icons';
           import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-          import * as SplashScreen from 'expo-splash-screen';
           import * as Localization from 'expo-localization';
 
-          // --- SPLASH EKRANINI TUT (Yükleme bitene kadar) ---
-          SplashScreen.preventAutoHideAsync();
+          // NOT: Native Splash kütüphanesini kaldırdık. 
+          // Artık uygulama açılır açılmaz kendi "Fake Splash" ekranını gösterecek.
+          // Bu sayede native tarafta takılı kalma riski yok.
 
           const BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
           const URL = "https://imdatgel.site/harem/piyasa_cache.json";
@@ -106,8 +105,11 @@ jobs:
 
           function MainApp() {
             const insets = useSafeAreaInsets();
-            const [appIsReady, setAppIsReady] = useState(false); // Uygulama Hazır mı?
             
+            // --- SOFTWARE SPLASH STATE ---
+            // Uygulama başlar başlamaz bu TRUE olur ve Siyah Ekranı gösterir.
+            const [showFakeSplash, setShowFakeSplash] = useState(true);
+
             const [data, setData] = useState([]);
             const [prevData, setPrevData] = useState({});
             const [loading, setLoading] = useState(true);
@@ -132,50 +134,37 @@ jobs:
               bg: '#F1F5F9', card: '#FFFFFF', text: '#1E293B', subText: '#64748B', gold: '#D97706', green: '#059669', red: '#DC2626', border: '#E2E8F0', modal: '#FFFFFF', input: '#F1F5F9', drawer: '#FFFFFF'
             };
 
-            // --- AÇILIŞ MANTIĞI (FİX) ---
+            // --- AÇILIŞ MANTIĞI ---
             useEffect(() => {
-              async function prepare() {
-                try {
-                  // 1. Verileri çekmeye çalış
-                  const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
-                  const json = await resp.json();
-                  if (Array.isArray(json)) {
-                    setData(json);
-                    const map = {}; json.forEach(i => map[i.k] = parseFloat(i.s)); setPrevData(map);
-                  }
-                } catch (e) {
-                  console.warn(e); // Hata olsa bile devam et, takılma!
-                } finally {
-                  // 2. Ne olursa olsun 2 saniye bekle (Splash görünsün diye)
-                  await new Promise(resolve => setTimeout(resolve, 2000));
-                  
-                  // 3. Uygulamayı hazır et
-                  setAppIsReady(true);
-                  setLoading(false);
-                }
-              }
-              prepare();
+              // 1. Veri çekmeyi başlat (Arka planda)
+              loadData();
               
-              // Saat
+              // 2. Saat ayarla
               const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString('tr-TR')), 1000);
-              return () => clearInterval(timer);
-            }, []);
+              
+              // 3. 2 Saniye sonra Splash ekranını ZORLA kapat.
+              // Veri gelse de gelmese de bu çalışır, o yüzden takılmaz.
+              const splashTimer = setTimeout(() => {
+                setShowFakeSplash(false);
+              }, 2000);
 
-            // --- LAYOUT HAZIR OLUNCA SPLASH'İ GİZLE ---
-            const onLayoutRootView = useCallback(async () => {
-              if (appIsReady) {
-                // Native Splash ekranını kaldır
-                await SplashScreen.hideAsync();
-              }
-            }, [appIsReady]);
+              return () => { clearInterval(timer); clearTimeout(splashTimer); };
+            }, []);
 
             const loadData = async () => {
               try {
                  const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
                  const json = await resp.json();
-                 if(Array.isArray(json)) setData(json);
-              } catch(e) {} finally { setRefreshing(false); }
+                 if(Array.isArray(json)) {
+                    setData(json);
+                    const map = {}; json.forEach(i => map[i.k] = parseFloat(i.s)); setPrevData(map);
+                 }
+              } catch(e) { console.log(e); } finally { 
+                 setLoading(false); 
+                 setRefreshing(false); 
+              }
             };
+            
             const onRefresh = () => { setRefreshing(true); loadData(); };
 
             const toggleMenu = () => {
@@ -231,12 +220,22 @@ jobs:
               );
             };
 
-            if (!appIsReady) {
-               return null; // Splash ekranı hala görünüyor (Native)
+            // --- FAKE SPLASH EKRANI (JS TARAFI) ---
+            if (showFakeSplash) {
+              return (
+                <View style={{flex:1, backgroundColor:'#000000', justifyContent:'center', alignItems:'center', zIndex:9999}}>
+                   <StatusBar barStyle="light-content" />
+                   <Text style={{color:'#F59E0B', fontSize:32, fontWeight:'900', letterSpacing:2}}>ANLIK PİYASA</Text>
+                   <View style={{marginTop:20}}>
+                      <ActivityIndicator size="small" color="#F59E0B" />
+                   </View>
+                </View>
+              );
             }
 
+            // --- ANA EKRAN ---
             return (
-              <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]} onLayout={onLayoutRootView}>
+              <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
                 <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
                 
                 <View style={[styles.header, { borderBottomColor: theme.border }]}>
@@ -251,7 +250,7 @@ jobs:
                    </View>
                 </View>
 
-                {loading ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:20}} /> : (
+                {loading && data.length === 0 ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:20}} /> : (
                   <FlatList
                     data={data} keyExtractor={item => item.k} renderItem={renderItem}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
@@ -288,7 +287,7 @@ jobs:
                                <Text style={{color: theme.text}}>{isDarkMode ? "Karanlık Mod" : "Aydınlık Mod"}</Text>
                                <TouchableOpacity onPress={() => setIsDarkMode(!isDarkMode)}>
                                   <Ionicons name={isDarkMode ? "moon" : "sunny"} size={26} color={theme.gold} />
-                               </TouchableOpacity>
+                                </TouchableOpacity>
                             </View>
                          </View>
                       </Animated.View>
@@ -381,8 +380,8 @@ jobs:
           npm install -g eas-cli
           npm install --legacy-peer-deps
 
-      - name: 🚀 Güncelle (Fix Splash)
+      - name: 🚀 Güncelle (Full Reset)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Splash Fix & Menu" --non-interactive
+          eas update --branch preview --message "Full Reset & Safe Splash" --non-interactive
