@@ -1,4 +1,4 @@
-name: EminXtream SDK 54 Full Update
+name: Piyasa Pro iOS SDK 54 Update
 
 on:
   push:
@@ -21,31 +21,27 @@ jobs:
         with:
           node-version: 20
 
-      - name: 📄 package.json Oluştur (SDK 54)
+      - name: 📄 package.json Oluştur (Firebase & SDK 54)
         run: |
           cat > package.json <<'JSON'
           {
-            "name": "eminxtream",
+            "name": "piyasa-pro",
             "version": "1.0.0",
             "main": "node_modules/expo/AppEntry.js",
             "dependencies": {
               "expo": "~54.0.0",
               "react": "19.0.0",
               "react-native": "0.78.0",
-              "expo-av": "~16.0.0",
-              "expo-keep-awake": "~15.0.0",
               "expo-status-bar": "~2.1.0",
-              "expo-asset": "~12.0.0",
+              "@react-native-firebase/app": "~21.6.0",
+              "@react-native-firebase/remote-config": "~21.6.0",
               "expo-constants": "~18.0.0",
               "expo-font": "~14.0.0",
               "expo-updates": "~0.27.0",
-              "expo-modules-core": "~2.3.0",
-              "fs-extra": "^11.2.0",
               "@expo/vector-icons": "~14.0.0",
               "@react-native-async-storage/async-storage": "2.1.0",
               "@react-navigation/native": "^7.0.0",
               "@react-navigation/stack": "^7.0.0",
-              "@react-navigation/bottom-tabs": "^7.0.0",
               "react-native-safe-area-context": "4.12.0",
               "react-native-screens": "~4.0.0",
               "react-native-gesture-handler": "~2.20.2",
@@ -59,31 +55,35 @@ jobs:
           }
           JSON
 
-      - name: 📄 app.json (SDK 54 & iOS/Android HTTP Fix)
+      - name: 📄 app.json (Piyasa Pro & Firebase Config)
         run: |
           cat > app.json <<'JSON'
           {
             "expo": {
-              "name": "eminxtream",
-              "slug": "eminxtream",
-              "owner": "eminxtream",
+              "name": "Piyasa Pro",
+              "slug": "piyasa-pro",
               "version": "1.0.0",
               "orientation": "portrait",
+              "userInterfaceStyle": "dark",
               "assetBundlePatterns": ["**/*"],
               "ios": {
-                "bundleIdentifier": "com.eminxtream.app",
+                "bundleIdentifier": "com.piyasapro.app",
+                "googleServicesFile": "./GoogleService-Info.plist",
                 "infoPlist": {
                   "NSAppTransportSecurity": {
-                    "NSAllowsArbitraryLoads": true,
-                    "NSAllowsArbitraryLoadsForMedia": true,
-                    "NSAllowsArbitraryLoadsInWebContent": true
+                    "NSAllowsArbitraryLoads": true
                   }
                 }
               },
               "android": {
-                "package": "com.eminxtream.app",
+                "package": "com.piyasapro.app",
+                "googleServicesFile": "./google-services.json",
                 "usesCleartextTraffic": true
               },
+              "plugins": [
+                "@react-native-firebase/app",
+                "@react-native-firebase/remote-config"
+              ],
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
               "runtimeVersion": { "policy": "appVersion" },
               "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
@@ -94,7 +94,6 @@ jobs:
       - name: 🖼 Assets Oluştur
         run: |
           mkdir -p assets
-          # Expo placeholder dosyaları
           :> assets/icon.png
           :> assets/splash.png
           :> assets/adaptive-icon.png
@@ -109,4 +108,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "SDK 54 & iOS Player Fallback + HTTP Fix" --non-interactive
+          eas update --branch preview --message "Firebase Remote Config & iOS Plist Update" --non-interactive
