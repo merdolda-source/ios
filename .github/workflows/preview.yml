@@ -1,4 +1,4 @@
-name: ANLIK PİYASA - FINAL IPA (Fixed)
+name: ANLIK PİYASA - FINAL BUILD (FIXED)
 
 on:
   workflow_dispatch:
@@ -24,7 +24,7 @@ jobs:
       - name: 🎨 ImageMagick Kur
         run: sudo apt-get install imagemagick -y
 
-      # 3. GÖRSELLERİ HAZIRLA (Senin Linkin + Gold Splash)
+      # 3. GÖRSELLERİ HAZIRLA
       - name: 🖼 İkon ve Splash Oluştur
         run: |
           mkdir -p assets
@@ -43,12 +43,12 @@ jobs:
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 4. PACKAGE.JSON (Gerekli Tüm Kütüphaneler)
+      # 4. PACKAGE.JSON
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
           {
-            "name": "anlik-piyasa",
+            "name": "eminxtream",
             "version": "1.0.0",
             "main": "node_modules/expo/AppEntry.js",
             "dependencies": {
@@ -97,14 +97,14 @@ jobs:
           }
           EOF
 
-      # 6. APP.JSON (AdMob Plugin Fix)
+      # 6. APP.JSON (HATA DÜZELTİLDİ: slug 'eminxtream' yapıldı)
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
           {
             "expo": {
               "name": "ANLIK PİYASA",
-              "slug": "anlik-piyasa",
+              "slug": "eminxtream",
               "version": "1.0.0",
               "orientation": "portrait",
               "icon": "./assets/icon.png",
