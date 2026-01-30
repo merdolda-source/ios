@@ -1,4 +1,4 @@
-name: EminXtream Premium UI
+name: EminXtream Pro Max UI
 
 on:
   push:
@@ -35,8 +35,8 @@ jobs:
               "react": "19.0.0",
               "react-native": "0.78.0",
               "expo-status-bar": "~2.1.0",
-              "expo-linear-gradient": "~14.0.0", 
-              "fs-extra": "^11.2.0"
+              "fs-extra": "^11.2.0",
+              "@expo/vector-icons": "~14.0.0"
             },
             "devDependencies": {
               "@babel/core": "^7.25.0",
@@ -67,191 +67,237 @@ jobs:
           module.exports = config;
           EOF
 
-      # 5. APP.JS (PREMIUM TASARIM KODU)
-      - name: 📱 App.js Oluştur (Premium UI)
+      # 5. APP.JS (FULL ÖZELLİKLİ KOD)
+      - name: 📱 App.js Oluştur (Ultimate Pro)
         run: |
           cat > App.js <<'EOF'
-          import React, { useState, useEffect, useCallback } from 'react';
+          import React, { useState, useEffect, useRef } from 'react';
           import { 
             Text, View, FlatList, SafeAreaView, ActivityIndicator, 
-            StatusBar, TouchableOpacity, StyleSheet, Platform, RefreshControl 
+            StatusBar, TouchableOpacity, StyleSheet, Modal, Dimensions, Platform 
           } from 'react-native';
-
-          // RENK PALETİ (Premium Dark Theme)
-          const COLORS = {
-            bg: '#0F172A',       // Derin Gece Mavisi/Siyahı
-            card: '#1E293B',     // Kart Rengi
-            gold: '#F59E0B',     // Altın/Amber Rengi
-            text: '#F1F5F9',     // Kırık Beyaz
-            subText: '#94A3B8',  // Soluk Gri
-            green: '#10B981',    // Yükseliş Yeşili
-            border: '#334155'    // İnce Çerçeve Rengi
-          };
+          import { Ionicons } from '@expo/vector-icons'; // İkonlar için
 
           const URL = "https://imdatgel.site/harem/piyasa_cache.json";
+          const { width } = Dimensions.get('window');
 
           export default function App() {
+            // --- STATE YÖNETİMİ ---
             const [data, setData] = useState([]);
+            const [prevData, setPrevData] = useState({}); // Önceki fiyatları tutmak için (İbre için)
             const [loading, setLoading] = useState(true);
-            const [refreshing, setRefreshing] = useState(false);
-            const [lastUpdate, setLastUpdate] = useState("");
+            const [isDarkMode, setIsDarkMode] = useState(true); // Gece/Gündüz Modu
+            const [currentTime, setCurrentTime] = useState(""); // Canlı Saat
+            
+            // Reklam Mantığı
+            const [refreshCount, setRefreshCount] = useState(0); // Kaç kere veri çekildi?
+            const [showInterstitial, setShowInterstitial] = useState(false); // Geçiş reklamı durumu
 
-            const loadData = useCallback(async () => {
+            // --- TEMA AYARLARI ---
+            const theme = isDarkMode ? {
+              bg: '#0F172A', card: '#1E293B', text: '#F8FAFC', subText: '#94A3B8',
+              gold: '#F59E0B', green: '#10B981', red: '#EF4444', border: '#334155',
+              banner: '#000000'
+            } : {
+              bg: '#F1F5F9', card: '#FFFFFF', text: '#1E293B', subText: '#64748B',
+              gold: '#D97706', green: '#059669', red: '#DC2626', border: '#E2E8F0',
+              banner: '#E2E8F0'
+            };
+
+            // --- 1. CANLI SAAT MANTIĞI (Saniye Saniye) ---
+            useEffect(() => {
+              const timer = setInterval(() => {
+                const now = new Date();
+                setCurrentTime(now.toLocaleTimeString('tr-TR'));
+              }, 1000);
+              return () => clearInterval(timer);
+            }, []);
+
+            // --- 2. VERİ ÇEKME & 30 SANİYE DÖNGÜSÜ ---
+            const loadData = async (isAutoRefresh = false) => {
+              if (!isAutoRefresh) setLoading(true);
+              
               try {
                 const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
                 const json = await resp.json();
+                
                 if (Array.isArray(json)) {
-                  setData(json);
-                  const now = new Date();
-                  setLastUpdate(now.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'}));
+                  // İbreler için önceki datayı kaydet
+                  setData(currentData => {
+                    const priceMap = {};
+                    currentData.forEach(item => {
+                      priceMap[item.k] = parseFloat(item.s);
+                    });
+                    setPrevData(priceMap);
+                    return json;
+                  });
+
+                  // Reklam Sayacı (4 seferde 1)
+                  setRefreshCount(prev => {
+                    const newVal = prev + 1;
+                    if (newVal % 4 === 0) {
+                      setTimeout(() => setShowInterstitial(true), 1000); // Biraz gecikmeli aç
+                    }
+                    return newVal;
+                  });
                 }
               } catch (e) {
                 console.error(e);
               } finally {
                 setLoading(false);
-                setRefreshing(false);
               }
-            }, []);
-
-            useEffect(() => { loadData(); }, []);
-
-            const onRefresh = () => {
-              setRefreshing(true);
-              loadData();
             };
 
-            // ÖZEL KART TASARIMI
+            // İlk açılışta ve her 30 saniyede bir çalışır
+            useEffect(() => {
+              loadData(); // İlk çekiş
+              const interval = setInterval(() => {
+                loadData(true); // 30 saniyede bir sessiz güncelleme
+              }, 30000);
+              return () => clearInterval(interval);
+            }, []);
+
+            // --- İBRE MANTIĞI (Yükseldi/Düştü) ---
+            const getTrendIcon = (symbol, currentPriceStr) => {
+              const currentPrice = parseFloat(currentPriceStr);
+              const oldPrice = prevData[symbol];
+
+              if (!oldPrice) return { icon: 'remove', color: theme.subText }; // Nötr
+              if (currentPrice > oldPrice) return { icon: 'caret-up', color: theme.green }; // Yükseliş
+              if (currentPrice < oldPrice) return { icon: 'caret-down', color: theme.red }; // Düşüş
+              return { icon: 'remove', color: theme.subText }; // Değişmedi
+            };
+
+            // --- KART TASARIMI ---
             const renderItem = ({ item }) => {
-              // Sembol ismini güzelleştir (ALTIN -> Altın, USDTRY -> Dolar/TL gibi yapılabilir ama şimdilik temizleyelim)
-              const symbol = item.k.replace('_', ' ');
-              const time = item.t?.split(' ')[1] || '--:--';
-              
+              const trend = getTrendIcon(item.k, item.s);
+              const symbolClean = item.k.replace('_', ' ');
+
               return (
-                <View style={styles.card}>
-                  {/* SOL TARAF: İSİM VE SAAT */}
-                  <View style={styles.leftInfo}>
-                    <View style={styles.iconPlaceholder}>
-                      <Text style={styles.iconText}>{symbol.substring(0,1)}</Text>
+                <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  {/* Sol Taraf: İkon ve İsim */}
+                  <View style={{flexDirection:'row', alignItems:'center'}}>
+                    <View style={[styles.iconBox, { backgroundColor: isDarkMode ? 'rgba(245,158,11,0.2)' : 'rgba(217,119,6,0.1)' }]}>
+                      <Text style={{fontSize:18, fontWeight:'bold', color: theme.gold}}>
+                        {symbolClean.charAt(0)}
+                      </Text>
                     </View>
                     <View>
-                      <Text style={styles.symbolName}>{symbol}</Text>
-                      <Text style={styles.timeText}>🕒 {time}</Text>
+                      <Text style={{color: theme.text, fontWeight:'bold', fontSize:16}}>{symbolClean}</Text>
+                      <Text style={{color: theme.subText, fontSize:11}}>{item.t?.split(' ')[1]}</Text>
                     </View>
                   </View>
 
-                  {/* SAĞ TARAF: FİYATLAR */}
-                  <View style={styles.rightInfo}>
-                    <Text style={styles.sellPrice}>{item.s} <Text style={styles.currency}>₺</Text></Text>
-                    <View style={styles.buyBadge}>
-                      <Text style={styles.buyLabel}>ALIŞ: </Text>
-                      <Text style={styles.buyPrice}>{item.a}</Text>
+                  {/* Sağ Taraf: Fiyat ve İbre */}
+                  <View style={{alignItems:'flex-end'}}>
+                    <View style={{flexDirection:'row', alignItems:'center'}}>
+                      <Text style={{color: theme.text, fontSize:18, fontWeight:'bold', marginRight: 5}}>
+                        {parseFloat(item.s).toFixed(2)}
+                      </Text>
+                      <Ionicons name={trend.icon} size={20} color={trend.color} />
                     </View>
+                    <Text style={{color: theme.subText, fontSize:12}}>Alış: {parseFloat(item.a).toFixed(2)}</Text>
                   </View>
                 </View>
               );
             };
 
             return (
-              <SafeAreaView style={styles.container}>
-                <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
-                
-                {/* HEADER ALANI */}
-                <View style={styles.header}>
+              <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+                <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+
+                {/* --- HEADER --- */}
+                <View style={[styles.header, { borderBottomColor: theme.border }]}>
                   <View>
-                    <Text style={styles.headerTitle}>Piyasa<Text style={{color: COLORS.gold}}>Pro</Text></Text>
-                    <Text style={styles.headerSub}>Canlı Döviz & Altın</Text>
+                    <Text style={[styles.headerTitle, { color: theme.text }]}>Piyasa<Text style={{color: theme.gold}}>Pro</Text></Text>
+                    <Text style={{color: theme.subText, fontSize: 12}}>Canlı Veri</Text>
                   </View>
-                  <View style={styles.statusBadge}>
-                    <View style={styles.dot} />
-                    <Text style={styles.statusText}>{lastUpdate ? lastUpdate : '...'}</Text>
+                  
+                  {/* SAAT ve MOD DEĞİŞTİRME */}
+                  <View style={{flexDirection:'row', alignItems:'center'}}>
+                    <Text style={[styles.clock, { color: theme.gold, backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
+                      {currentTime}
+                    </Text>
+                    <TouchableOpacity onPress={() => setIsDarkMode(!isDarkMode)} style={{marginLeft: 10, padding:5}}>
+                      <Ionicons name={isDarkMode ? "sunny" : "moon"} size={24} color={theme.text} />
+                    </TouchableOpacity>
                   </View>
                 </View>
 
-                {/* LİSTE ALANI */}
-                {loading ? (
-                  <View style={styles.center}>
-                    <ActivityIndicator size="large" color={COLORS.gold} />
-                    <Text style={{color: COLORS.subText, marginTop: 10}}>Piyasa verileri alınıyor...</Text>
-                  </View>
+                {/* --- LİSTE --- */}
+                {loading && !data.length ? (
+                  <View style={styles.center}><ActivityIndicator size="large" color={theme.gold} /></View>
                 ) : (
                   <FlatList
                     data={data}
-                    keyExtractor={(item, index) => index.toString()}
+                    keyExtractor={(item) => item.k}
                     renderItem={renderItem}
-                    contentContainerStyle={styles.listContent}
-                    refreshControl={
-                      <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.gold} />
-                    }
+                    contentContainerStyle={{paddingBottom: 80, paddingTop: 10}}
                   />
                 )}
+
+                {/* --- BANNER REKLAM ALANI (TEST) --- */}
+                <View style={[styles.bannerContainer, { backgroundColor: theme.banner, borderTopColor: theme.border }]}>
+                  <Text style={{color: theme.subText, fontSize: 10, marginBottom: 2}}>AdMob Banner Alanı (Test)</Text>
+                  <View style={{width: 320, height: 50, backgroundColor: isDarkMode ? '#333' : '#CCC', justifyContent:'center', alignItems:'center'}}>
+                    <Text style={{color: isDarkMode ? '#FFF' : '#000', fontWeight:'bold'}}>BANNER REKLAM</Text>
+                  </View>
+                </View>
+
+                {/* --- GEÇİŞ REKLAMI (MODAL) --- */}
+                <Modal visible={showInterstitial} transparent={true} animationType="slide">
+                  <View style={styles.modalOverlay}>
+                    <View style={[styles.interstitialBox, { backgroundColor: theme.card }]}>
+                      <View style={{flexDirection:'row', justifyContent:'flex-end'}}>
+                         <TouchableOpacity onPress={() => setShowInterstitial(false)} style={styles.closeBtn}>
+                           <Ionicons name="close" size={24} color="#FFF" />
+                         </TouchableOpacity>
+                      </View>
+                      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+                        <Text style={{color: theme.text, fontSize:20, fontWeight:'bold', marginBottom:10}}>GEÇİŞ REKLAMI (TEST)</Text>
+                        <Text style={{color: theme.subText, textAlign:'center'}}>
+                          Burası AdMob Interstitial alanı.{"\n"}4. veri çekişinde otomatik açıldı.
+                        </Text>
+                        <ActivityIndicator size="large" color={theme.gold} style={{marginTop:20}} />
+                      </View>
+                    </View>
+                  </View>
+                </Modal>
+
               </SafeAreaView>
             );
           }
 
           const styles = StyleSheet.create({
-            container: { flex: 1, backgroundColor: COLORS.bg },
+            container: { flex: 1 },
             center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-            
-            // Header Stilleri
             header: {
-              paddingHorizontal: 20,
-              paddingVertical: 15,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              borderBottomWidth: 1,
-              borderBottomColor: COLORS.border,
-              backgroundColor: COLORS.bg,
-              marginBottom: 10
+              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+              paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1
             },
-            headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: 0.5 },
-            headerSub: { fontSize: 12, color: COLORS.subText, fontWeight: '500' },
-            statusBadge: { 
-              flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, 
-              paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border 
+            headerTitle: { fontSize: 24, fontWeight: '800' },
+            clock: {
+              fontSize: 14, fontWeight: 'bold', paddingHorizontal: 10, paddingVertical: 5,
+              borderRadius: 8, overflow: 'hidden'
             },
-            dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.green, marginRight: 6 },
-            statusText: { color: COLORS.text, fontSize: 12, fontWeight: 'bold' },
-
-            // Liste Stilleri
-            listContent: { paddingHorizontal: 16, paddingBottom: 20 },
-            
-            // Kart Stilleri
             card: {
-              backgroundColor: COLORS.card,
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 12,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              // Gölge Efekti (iOS & Android)
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 5,
-              elevation: 4,
-              borderWidth: 1,
-              borderColor: COLORS.border
+              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+              padding: 16, marginHorizontal: 16, marginBottom: 12, borderRadius: 16,
+              borderWidth: 1, shadowColor: "#000", shadowOffset: {width:0, height:2}, shadowOpacity:0.1, elevation:3
             },
-            leftInfo: { flexDirection: 'row', alignItems: 'center' },
-            iconPlaceholder: {
-              width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(245, 158, 11, 0.15)',
-              justifyContent: 'center', alignItems: 'center', marginRight: 12
-            },
-            iconText: { color: COLORS.gold, fontSize: 18, fontWeight: 'bold' },
-            symbolName: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 2 },
-            timeText: { fontSize: 11, color: COLORS.subText },
+            iconBox: { width: 40, height: 40, borderRadius: 12, justifyContent:'center', alignItems:'center', marginRight:12 },
             
-            rightInfo: { alignItems: 'flex-end' },
-            sellPrice: { fontSize: 18, fontWeight: 'bold', color: COLORS.text },
-            currency: { fontSize: 14, color: COLORS.gold },
-            buyBadge: { 
-              flexDirection: 'row', marginTop: 4, backgroundColor: 'rgba(255,255,255,0.05)', 
-              paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 
+            // Banner
+            bannerContainer: {
+              position: 'absolute', bottom: 0, width: '100%', height: 70,
+              justifyContent: 'center', alignItems: 'center', borderTopWidth: 1,
+              paddingBottom: Platform.OS === 'ios' ? 15 : 0
             },
-            buyLabel: { fontSize: 10, color: COLORS.subText, fontWeight: '600' },
-            buyPrice: { fontSize: 10, color: COLORS.text, fontWeight: '700' }
+            
+            // Modal (Geçiş Reklamı)
+            modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
+            interstitialBox: { width: '90%', height: '60%', borderRadius: 20, padding: 20 },
+            closeBtn: { backgroundColor: '#EF4444', borderRadius: 20, padding: 5 }
           });
           EOF
 
@@ -265,7 +311,7 @@ jobs:
               "slug": "eminxtream",
               "version": "1.0.0",
               "orientation": "portrait",
-              "userInterfaceStyle": "dark",
+              "userInterfaceStyle": "automatic",
               "ios": {
                 "bundleIdentifier": "com.piyasapro.app",
                 "infoPlist": {
@@ -296,4 +342,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "New Premium Dark UI" --non-interactive
+          eas update --branch preview --message "Full Pro Features" --non-interactive
