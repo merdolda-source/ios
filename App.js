@@ -1,146 +1,165 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, SafeAreaView, ActivityIndicator, StatusBar, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, FlatList, SafeAreaView, ActivityIndicator, StatusBar, TouchableOpacity, ScrollView } from 'react-native';
 import remoteConfig from '@react-native-firebase/remote-config';
 
-const COLORS = { bg: '#000', card: '#1C1C1E', gold: '#FFD60A', green: '#32D74B', text: '#FFF', muted: '#8E8E93', red: '#FF453A' };
-
-// YEDEK URL (Firebase çalışmazsa buraya gider)
-const FALLBACK_URL = 'https://imdatgel.site/harem/piyasa_cache.json';
+// SENİN VERDİĞİN LİNK (YEDEK OLARAK)
+const DEFAULT_URL = "https://imdatgel.site/harem/piyasa_cache.json";
 
 export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [errorMsg, setErrorMsg] = useState(null); // Hata mesajını ekranda göstermek için
+  const [logs, setLogs] = useState([]); // Ekrana durum basmak için log sistemi
 
-  const fetchData = async () => {
+  // Ekrana log ekleyen yardımcı fonksiyon
+  const addLog = (msg) => {
+    console.log(msg);
+    setLogs(prev => [...prev, `${new Date().toLocaleTimeString()} -> ${msg}`]);
+  };
+
+  const initApp = async () => {
     setLoading(true);
-    setErrorMsg(null);
-    
+    setLogs([]); // Logları temizle
+    addLog("Uygulama Başlatılıyor...");
+
+    let targetUrl = DEFAULT_URL;
+
+    // 1. FIREBASE BAĞLANTISI
     try {
-      // 1. Önce Firebase'i dene
-      let targetUrl = FALLBACK_URL;
-      try {
-        await remoteConfig().setDefaults({ json_url: FALLBACK_URL });
-        await remoteConfig().fetchAndActivate();
-        const remoteUrl = remoteConfig().getValue('json_url').asString();
-        if (remoteUrl && remoteUrl.startsWith('http')) {
-          targetUrl = remoteUrl;
-        }
-      } catch (firebaseError) {
-        console.log("Firebase hatası (Önemli değil, yedek URL kullanılıyor):", firebaseError);
-      }
-
-      // 2. Veriyi Çek
-      const response = await fetch(targetUrl);
+      addLog("Firebase Remote Config hazırlanıyor...");
+      await remoteConfig().setConfigSettings({ minimumFetchIntervalMillis: 0 });
+      await remoteConfig().setDefaults({ json_url: DEFAULT_URL });
       
-      // Yanıt başarısızsa hata fırlat
-      if (!response.ok) {
-        throw new Error(`Sunucu Hatası: ${response.status}`);
+      addLog("Firebase'den veri çekiliyor (Fetch)...");
+      const fetched = await remoteConfig().fetchAndActivate();
+      addLog(`Fetch Durumu: ${fetched ? 'Yeni veri alındı' : 'Cache kullanılıyor'}`);
+      
+      const remoteVal = remoteConfig().getValue('json_url');
+      const remoteString = remoteVal.asString();
+      addLog(`Firebase'den gelen URL: ${remoteString}`);
+
+      if (remoteString && remoteString.startsWith("http")) {
+        targetUrl = remoteString;
+      } else {
+        addLog("⚠️ Firebase URL'si geçersiz, varsayılan kullanılıyor.");
       }
 
-      const json = await response.json();
+    } catch (err) {
+      addLog(`❌ Firebase Hatası: ${err.message}`);
+      addLog("Varsayılan URL ile devam ediliyor...");
+    }
 
-      if (Array.isArray(json) && json.length > 0) {
-        setData(json);
+    // 2. VERİ ÇEKME (FETCH)
+    try {
+      addLog(`Veri çekiliyor: ${targetUrl}`);
+      const response = await fetch(targetUrl);
+      addLog(`Sunucu Yanıt Kodu: ${response.status}`);
+
+      if (!response.ok) throw new Error(`HTTP Hatası: ${response.status}`);
+
+      const textData = await response.text();
+      // addLog(`Gelen Ham Veri (İlk 50 krktr): ${textData.substring(0, 50)}...`);
+
+      let jsonData;
+      try {
+        jsonData = JSON.parse(textData);
+        addLog(`JSON Ayrıştırıldı. Veri Sayısı: ${jsonData.length}`);
+      } catch (parseErr) {
+        throw new Error("Gelen veri JSON formatında değil! HTML dönüyor olabilir.");
+      }
+
+      if (Array.isArray(jsonData)) {
+        setData(jsonData);
+        addLog("✅ Veriler başarıyla yüklendi!");
       } else {
-        throw new Error("Veri boş veya format hatalı.");
+        throw new Error("JSON formatı beklenen Dizi (Array) yapısında değil.");
       }
 
     } catch (e) {
-      setErrorMsg(e.toString());
-      Alert.alert("Hata", "Veriler güncellenemedi: " + e.message);
+      addLog(`❌ KRİTİK HATA: ${e.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    initApp();
   }, []);
 
+  // HATA AYIKLAMA EKRANI (Veri yoksa burası görünür)
+  if (data.length === 0 && !loading) {
+    return (
+      <SafeAreaView style={styles.debugContainer}>
+        <StatusBar barStyle="light-content" />
+        <Text style={styles.debugTitle}>TANI RAPORU</Text>
+        <ScrollView style={styles.logBox}>
+          {logs.map((log, index) => (
+            <Text key={index} style={styles.logText}>{log}</Text>
+          ))}
+        </ScrollView>
+        <TouchableOpacity style={styles.retryBtn} onPress={initApp}>
+          <Text style={styles.retryText}>TEKRAR DENE</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  // NORMAL UYGULAMA EKRANI (Veri varsa burası görünür)
   return (
-    <SafeAreaView style={styles.c}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
-      {/* Header */}
-      <View style={styles.h}>
-        <View>
-          <Text style={styles.t}>Piyasa Pro</Text>
-          <Text style={styles.st}>{data.length > 0 ? 'CANLI' : 'BAĞLANTI YOK'}</Text>
-        </View>
-        <TouchableOpacity onPress={fetchData} style={styles.rBtn}>
-          <Text style={styles.rTxt}>YENİLE</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Piyasa Pro</Text>
+        <TouchableOpacity onPress={initApp} style={styles.refreshBtn}>
+          <Text style={styles.refreshText}>⟳</Text>
         </TouchableOpacity>
       </View>
 
-      <TextInput 
-        style={styles.s} 
-        placeholder="Sembol ara..." 
-        placeholderTextColor="#8E8E93" 
-        onChangeText={setSearch} 
-      />
-
-      {/* İÇERİK ALANI */}
-      <View style={{flex: 1}}>
-        {loading ? (
-          <ActivityIndicator size="large" color={COLORS.gold} style={{marginTop: 50}} />
-        ) : errorMsg ? (
-          // HATA VARSA GÖSTER
-          <View style={styles.errBox}>
-            <Text style={styles.errTxt}>⚠️ Veri Alınamadı</Text>
-            <Text style={styles.errSub}>{errorMsg}</Text>
-            <TouchableOpacity onPress={fetchData} style={styles.retryBtn}>
-              <Text style={styles.retryTxt}>TEKRAR DENE</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          // VERİ VARSA LİSTELE
-          <FlatList
-            data={data.filter(i => i.k.includes(search.toUpperCase()))}
-            keyExtractor={item => item.k}
-            renderItem={({ item }) => (
-              <View style={styles.cd}>
-                <View>
-                  <Text style={styles.sym}>{item.k.replace('_', ' ')}</Text>
-                  <Text style={styles.tm}>{item.t.split(' ')[1]}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.pr}>{parseFloat(item.s).toFixed(2)} ₺</Text>
-                  <Text style={styles.buy}>Alış: {parseFloat(item.a).toFixed(2)}</Text>
-                </View>
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#FFD60A" />
+          <Text style={{color:'#888', marginTop:10}}>Veriler Güncelleniyor...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={data}
+          keyExtractor={(item) => item.k}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <View>
+                <Text style={styles.symbol}>{item.k.replace('_', ' ')}</Text>
+                <Text style={styles.time}>{item.t?.split(' ')[1]}</Text>
               </View>
-            )}
-            ListEmptyComponent={
-              <Text style={{color: '#fff', textAlign: 'center', marginTop: 20}}>
-                Liste boş. Arama kriterini değiştirin.
-              </Text>
-            }
-          />
-        )}
-      </View>
+              <View style={{alignItems:'flex-end'}}>
+                <Text style={styles.price}>{parseFloat(item.s).toFixed(2)} ₺</Text>
+                <Text style={styles.buy}>Alış: {parseFloat(item.a).toFixed(2)}</Text>
+              </View>
+            </View>
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  c: { flex: 1, backgroundColor: COLORS.bg },
-  h: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  t: { fontSize: 28, fontWeight: '800', color: COLORS.text },
-  st: { color: COLORS.muted, fontWeight: 'bold', fontSize: 10, marginTop: 4 },
-  rBtn: { backgroundColor: '#1C1C1E', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#333' },
-  rTxt: { color: COLORS.gold, fontWeight: 'bold', fontSize: 12 },
-  s: { backgroundColor: '#1C1C1E', color: '#FFF', marginHorizontal: 15, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#333' },
-  cd: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: COLORS.card, padding: 16, marginHorizontal: 15, marginBottom: 10, borderRadius: 16, borderWidth: 1, borderColor: '#2C2C2E' },
-  sym: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  tm: { color: COLORS.muted, fontSize: 11, marginTop: 4 },
-  pr: { color: '#FFF', fontSize: 18, fontWeight: '800' },
-  buy: { color: COLORS.muted, fontSize: 12, marginTop: 4 },
+  container: { flex: 1, backgroundColor: '#000' },
+  debugContainer: { flex: 1, backgroundColor: '#111', padding: 20 },
+  debugTitle: { color: '#FF453A', fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign:'center' },
+  logBox: { flex: 1, backgroundColor: '#000', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#333', marginBottom: 20 },
+  logText: { color: '#0F0', fontFamily: 'Courier', fontSize: 11, marginBottom: 4 },
   
-  // Hata Ekranı Stilleri
-  errBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  errTxt: { color: COLORS.red, fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
-  errSub: { color: COLORS.muted, textAlign: 'center', marginBottom: 20 },
-  retryBtn: { backgroundColor: COLORS.gold, paddingHorizontal: 30, paddingVertical: 12, borderRadius: 20 },
-  retryTxt: { color: '#000', fontWeight: 'bold' }
+  header: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth:1, borderColor:'#222' },
+  title: { fontSize: 28, fontWeight: '900', color: '#FFF' },
+  refreshBtn: { padding: 10 },
+  refreshText: { color: '#FFD60A', fontSize: 24, fontWeight: 'bold' },
+  
+  card: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#1C1C1E', padding: 16, marginHorizontal: 16, marginBottom: 10, borderRadius: 12 },
+  symbol: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  time: { color: '#666', fontSize: 11, marginTop: 4 },
+  price: { color: '#FFD60A', fontSize: 18, fontWeight: '800' },
+  buy: { color: '#666', fontSize: 12 },
+  
+  retryBtn: { backgroundColor: '#FFD60A', padding: 15, borderRadius: 10, alignItems: 'center' },
+  retryText: { color: '#000', fontWeight: 'bold' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' }
 });
