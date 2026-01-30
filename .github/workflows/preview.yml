@@ -1,4 +1,4 @@
-name: ANLIK PİYASA - PRO MODE (IOS STYLE)
+name: ANLIK PİYASA - OFFLINE PRO MODE
 
 on:
   push:
@@ -81,30 +81,51 @@ jobs:
           const { getDefaultConfig } = require('expo/metro-config'); const config = getDefaultConfig(__dirname); module.exports = config;
           EOF
 
-      # 5. APP.JS (YENİLENMİŞ TASARIM & MENÜ)
+      # 5. APP.JS (STATİK VERİ & GELİŞMİŞ ÖZELLİKLER)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
           import React, { useState, useEffect, useRef } from 'react';
           import { 
-            Text, View, FlatList, ActivityIndicator, StatusBar, TouchableOpacity, 
-            StyleSheet, Modal, Platform, TextInput, Keyboard, RefreshControl, 
-            KeyboardAvoidingView, Animated, Dimensions, Appearance, Switch, ScrollView
+            Text, View, FlatList, StatusBar, TouchableOpacity, 
+            StyleSheet, Modal, Platform, TextInput, RefreshControl, 
+            KeyboardAvoidingView, Animated, Dimensions, Appearance, ScrollView, Image
           } from 'react-native';
-          import { Ionicons } from '@expo/vector-icons';
+          import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
           import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
           // --- SABİTLER ---
-          const BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
-          const URL = "https://imdatgel.site/harem/piyasa_cache.json";
           const SCREEN_WIDTH = Dimensions.get('window').width;
           const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
+
+          // --- STATİK VERİ (API YERİNE BURADAN OKUYACAK) ---
+          const STATIC_DATA = [
+              { "kod": "USD", "isim": "Amerikan Doları", "alis": "43,4902", "satis": "43,5086", "degisim": "%0,21", "durum": "yukseliste", "son_guncelleme": "22:26" },
+              { "kod": "EUR", "isim": "Euro", "alis": "51,6787", "satis": "51,6907", "degisim": "%-0,73", "durum": "dususte", "son_guncelleme": "22:26" },
+              { "kod": "GA", "isim": "Gram Altın", "alis": "2950,12", "satis": "2980,50", "degisim": "%0,45", "durum": "yukseliste", "son_guncelleme": "22:30" },
+              { "kod": "GBP", "isim": "İngiliz Sterlini", "alis": "59,6493", "satis": "59,6879", "degisim": "%-0,59", "durum": "dususte", "son_guncelleme": "22:26" },
+              { "kod": "CHF", "isim": "İsviçre Frangı", "alis": "56,3491", "satis": "56,3948", "degisim": "%-0,59", "durum": "dususte", "son_guncelleme": "22:26" },
+              { "kod": "CAD", "isim": "Kanada Doları", "alis": "32,0134", "satis": "32,0364", "degisim": "%-0,47", "durum": "dususte", "son_guncelleme": "22:26" },
+              { "kod": "CEYREK", "isim": "Çeyrek Altın", "alis": "4850,00", "satis": "4920,00", "degisim": "%0,10", "durum": "yukseliste", "son_guncelleme": "22:30" },
+              { "kod": "RUB", "isim": "Rus Rublesi", "alis": "0,5679", "satis": "0,5779", "degisim": "%0,25", "durum": "yukseliste", "son_guncelleme": "20:37" },
+              { "kod": "AED", "isim": "BAE Dirhemi", "alis": "11,8398", "satis": "11,8462", "degisim": "%0,21", "durum": "yukseliste", "son_guncelleme": "22:26" },
+              { "kod": "AUD", "isim": "Avustralya Doları", "alis": "30,3431", "satis": "30,3690", "degisim": "%-0,75", "durum": "dususte", "son_guncelleme": "22:26" },
+              { "kod": "DKK", "isim": "Danimarka Kronu", "alis": "6,9133", "satis": "6,9180", "degisim": "%-0,57", "durum": "dususte", "son_guncelleme": "22:26" },
+              { "kod": "SEK", "isim": "İsveç Kronu", "alis": "4,8962", "satis": "4,9006", "degisim": "%-0,65", "durum": "dususte", "son_guncelleme": "22:26" },
+              { "kod": "NOK", "isim": "Norveç Kronu", "alis": "4,5234", "satis": "4,5283", "degisim": "%-0,54", "durum": "dususte", "son_guncelleme": "22:26" },
+              { "kod": "JPY", "isim": "Japon Yeni", "alis": "0,2811", "satis": "0,2822", "degisim": "%-0,88", "durum": "dususte", "son_guncelleme": "22:25" },
+              { "kod": "KWD", "isim": "Kuveyt Dinarı", "alis": "141,5350", "satis": "142,0451", "degisim": "%0,09", "durum": "yukseliste", "son_guncelleme": "22:04" },
+              { "kod": "ZAR", "isim": "Güney Afrika Randı", "alis": "2,7003", "satis": "2,7026", "degisim": "%-2,06", "durum": "dususte", "son_guncelleme": "22:26" },
+              { "kod": "SAR", "isim": "Suudi Arabistan Riyali", "alis": "11,5819", "satis": "11,6132", "degisim": "%0,21", "durum": "yukseliste", "son_guncelleme": "22:26" },
+              { "kod": "CNY", "isim": "Çin Yuanı", "alis": "6,2500", "satis": "6,2538", "degisim": "%0,07", "durum": "yukseliste", "son_guncelleme": "22:26" },
+              { "kod": "AZN", "isim": "Azerbaycan Manatı", "alis": "25,5825", "satis": "25,5933", "degisim": "%0,21", "durum": "yukseliste", "son_guncelleme": "22:26" }
+          ];
 
           // --- DİL PAKETİ ---
           const LANG = {
             tr: {
-              title: "PİYASA",
               buy: "Alış",
+              sell: "Satış",
               calc: "Hesapla",
               amount: "Miktar",
               settings: "Ayarlar",
@@ -114,14 +135,16 @@ jobs:
               dark: "Karanlık",
               light: "Aydınlık",
               close: "Kapat",
-              loading: "Yükleniyor...",
               adSpace: "REKLAM ALANI",
               bannerPlace: "BANNER REKLAM YERİ",
-              calcTitle: "Döviz Hesaplayıcı"
+              calcTitle: "Döviz Hesaplayıcı",
+              lastUpdate: "Son Güncelleme",
+              appPref: "Uygulama Tercihleri",
+              version: "Sürüm"
             },
             en: {
-              title: "MARKET",
               buy: "Buy",
+              sell: "Sell",
               calc: "Calculate",
               amount: "Amount",
               settings: "Settings",
@@ -131,10 +154,12 @@ jobs:
               dark: "Dark",
               light: "Light",
               close: "Close",
-              loading: "Loading...",
               adSpace: "AD SPACE",
               bannerPlace: "BANNER AD PLACE",
-              calcTitle: "Currency Calculator"
+              calcTitle: "Currency Calculator",
+              lastUpdate: "Last Update",
+              appPref: "App Preferences",
+              version: "Version"
             }
           };
 
@@ -144,8 +169,6 @@ jobs:
             
             // State
             const [data, setData] = useState([]);
-            const [prevData, setPrevData] = useState({});
-            const [loading, setLoading] = useState(true);
             const [refreshing, setRefreshing] = useState(false);
             
             // Ayarlar State'i
@@ -168,25 +191,25 @@ jobs:
             const T = LANG[language];
 
             const theme = isDarkMode ? {
-              bg: '#000000', // Tam siyah (OLED dostu)
-              surface: '#1C1C1E', // iOS Dark Gray
+              bg: '#000000',
+              surface: '#1C1C1E',
               card: '#1C1C1E',
               text: '#FFFFFF',
               subText: '#8E8E93',
-              gold: '#FFD60A', // iOS Vivid Yellow
-              green: '#30D158', // iOS Green
-              red: '#FF453A', // iOS Red
+              gold: '#FFD60A',
+              green: '#30D158',
+              red: '#FF453A',
               border: '#38383A',
               modal: '#2C2C2E',
               input: '#2C2C2E',
               tint: 'rgba(255,255,255,0.1)'
             } : {
-              bg: '#F2F2F7', // iOS System Gray 6
+              bg: '#F2F2F7',
               surface: '#FFFFFF',
               card: '#FFFFFF',
               text: '#000000',
               subText: '#8E8E93',
-              gold: '#FF9500', // iOS Orange/Gold
+              gold: '#FF9500',
               green: '#34C759',
               red: '#FF3B30',
               border: '#E5E5EA',
@@ -198,35 +221,22 @@ jobs:
             // Menü Animasyonu
             useEffect(() => {
               Animated.parallel([
-                Animated.timing(slideAnim, {
-                  toValue: menuOpen ? 0 : -DRAWER_WIDTH,
-                  duration: 300,
-                  useNativeDriver: true,
-                }),
-                Animated.timing(fadeAnim, {
-                  toValue: menuOpen ? 1 : 0,
-                  duration: 300,
-                  useNativeDriver: true,
-                })
+                Animated.timing(slideAnim, { toValue: menuOpen ? 0 : -DRAWER_WIDTH, duration: 300, useNativeDriver: true }),
+                Animated.timing(fadeAnim, { toValue: menuOpen ? 1 : 0, duration: 300, useNativeDriver: true })
               ]).start();
             }, [menuOpen]);
 
-            const loadData = async (isAuto = false) => {
-              if (!isAuto) setLoading(true);
-              try {
-                const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
-                const json = await resp.json();
-                if (Array.isArray(json)) {
-                  setData(c => {
-                     const m = {}; c.forEach(i => m[i.k] = parseFloat(i.s)); setPrevData(m); return json;
-                  });
-                }
-              } catch (e) { console.error(e); } 
-              finally { setLoading(false); setRefreshing(false); }
+            // VERİ YÜKLEME (Artık Statik)
+            const loadData = () => {
+              // Simüle edilmiş bir yükleme süresi (kullanıcı yenilendiğini hissetsin)
+              setTimeout(() => {
+                setData(STATIC_DATA);
+                setRefreshing(false);
+              }, 500);
             };
 
-            useEffect(() => { loadData(); const i = setInterval(() => loadData(true), 30000); return () => clearInterval(i); }, []);
-            const onRefresh = () => { setRefreshing(true); loadData(true); };
+            useEffect(() => { loadData(); }, []);
+            const onRefresh = () => { setRefreshing(true); loadData(); };
 
             const openCalculator = (item) => {
               setSelectedItem(item); setAmount(''); setCalcResult(null); setCalcVisible(true);
@@ -236,39 +246,60 @@ jobs:
               setAmount(text);
               if (selectedItem && text) {
                 const val = parseFloat(text.replace(',', '.'));
-                const p = parseFloat(selectedItem.s);
-                if (!isNaN(val)) setCalcResult((val * p).toFixed(2));
+                const p = parseFloat(selectedItem.satis.replace(',', '.').replace('.', '')); // Binlik ayracı temizliği gerekebilir ama basit tutuyoruz
+                // Basit parse: Virgülü noktaya çevir
+                const simplePrice = parseFloat(selectedItem.satis.replace(',', '.'));
+                if (!isNaN(val)) setCalcResult((val * simplePrice).toFixed(2));
               }
             };
 
-            const getTrendIcon = (symbol, s) => {
-               const cur = parseFloat(s); const old = prevData[symbol];
-               if(!old) return {n:'remove-outline', c:theme.subText};
-               if(cur > old) return {n:'caret-up', c:theme.green};
-               if(cur < old) return {n:'caret-down', c:theme.red};
-               return {n:'remove-outline', c:theme.subText};
+            // İKON BELİRLEME (Altın vs Döviz)
+            const getIcon = (item) => {
+               const name = item.isim.toLowerCase();
+               const code = item.kod.toLowerCase();
+               
+               if (name.includes('altın') || name.includes('gold') || code === 'ga' || code === 'ceyrek') {
+                 return <FontAwesome5 name="coins" size={20} color={theme.gold} />;
+               }
+               // Döviz sembolleri
+               if(code === 'usd') return <FontAwesome5 name="dollar-sign" size={20} color={theme.green} />;
+               if(code === 'eur') return <FontAwesome5 name="euro-sign" size={20} color={theme.text} />;
+               if(code === 'gbp') return <FontAwesome5 name="pound-sign" size={20} color={theme.text} />;
+               if(code === 'jpy') return <FontAwesome5 name="yen-sign" size={20} color={theme.text} />;
+               if(code === 'rub') return <FontAwesome5 name="ruble-sign" size={20} color={theme.text} />;
+               
+               return <Text style={{fontSize:16, fontWeight:'800', color: theme.subText}}>{item.kod.charAt(0)}</Text>;
             };
 
             const renderItem = ({ item }) => {
-              const trend = getTrendIcon(item.k, item.s);
+              // Duruma göre ok belirleme (JSON'dan geliyor)
+              const isUp = item.durum === 'yukseliste';
+              const isDown = item.durum === 'dususte';
+              const trendIcon = isUp ? 'caret-up' : (isDown ? 'caret-down' : 'remove-outline');
+              const trendColor = isUp ? theme.green : (isDown ? theme.red : theme.subText);
+
               return (
                 <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
                   <View style={[styles.card, { backgroundColor: theme.card, shadowColor: theme.text }]}>
                     <View style={{flexDirection:'row', alignItems:'center'}}>
                        <View style={[styles.iconBox, { backgroundColor: theme.tint }]}>
-                          <Text style={{fontSize:17, fontWeight:'700', color: theme.gold}}>{item.k.replace('_',' ').charAt(0)}</Text>
+                          {getIcon(item)}
                        </View>
                        <View style={{marginLeft: 12}}>
-                          <Text style={{color: theme.text, fontWeight:'600', fontSize:16}}>{item.k.replace('_', ' ')}</Text>
-                          <Text style={{color: theme.subText, fontSize:12, marginTop:2}}>{item.t?.split(' ')[1]}</Text>
+                          <Text style={{color: theme.text, fontWeight:'700', fontSize:16}}>{item.kod}</Text>
+                          <Text style={{color: theme.subText, fontSize:12, marginTop:2}}>{item.isim}</Text>
                        </View>
                     </View>
                     <View style={{alignItems:'flex-end'}}>
                        <View style={{flexDirection:'row', alignItems:'center'}}>
-                          <Text style={{color: theme.text, fontSize:17, fontWeight:'700', marginRight:4, fontVariant: ['tabular-nums']}}>{parseFloat(item.s).toFixed(2)}</Text>
-                          <Ionicons name={trend.n} size={16} color={trend.c} />
+                          <Text style={{color: theme.text, fontSize:18, fontWeight:'700', marginRight:6, fontVariant: ['tabular-nums']}}>{item.satis}</Text>
+                          {/* OKLAR ARTIK HER ZAMAN GÖRÜNÜR */}
+                          <Ionicons name={trendIcon} size={18} color={trendColor} />
                        </View>
-                       <Text style={{color: theme.subText, fontSize:12, marginTop:2}}>{T.buy}: {parseFloat(item.a).toFixed(2)}</Text>
+                       <View style={{flexDirection:'row', marginTop:2}}>
+                          <Text style={{color: theme.subText, fontSize:11, marginRight:8}}>{T.buy}: {item.alis}</Text>
+                          <Text style={{color: trendColor, fontSize:11, fontWeight:'bold'}}>{item.degisim}</Text>
+                       </View>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -279,24 +310,24 @@ jobs:
               <View style={[styles.container, { backgroundColor: theme.bg }]}>
                 <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
                 
-                {/* HEADER (iOS Style) */}
+                {/* HEADER */}
                 <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
                    <TouchableOpacity onPress={() => setMenuOpen(true)} style={styles.headerBtn}>
                       <Ionicons name="menu" size={28} color={theme.gold} />
                    </TouchableOpacity>
-                   <Text style={[styles.title, { color: theme.text }]}>ANLIK <Text style={{color: theme.gold}}>{T.title}</Text></Text>
+                   <Text style={[styles.title, { color: theme.text }]}>ANLIK <Text style={{color: theme.gold}}>PİYASA</Text></Text>
                    <View style={styles.headerBtn} /> 
                 </View>
 
                 {/* LISTE */}
-                {loading ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:50}} /> : (
-                  <FlatList
-                    data={data} keyExtractor={item => item.k} renderItem={renderItem}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
-                    contentContainerStyle={{paddingTop: 15, paddingBottom: 100}}
-                    ItemSeparatorComponent={() => <View style={{height: 10}} />}
-                  />
-                )}
+                <FlatList
+                  data={data} 
+                  keyExtractor={item => item.kod} 
+                  renderItem={renderItem}
+                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
+                  contentContainerStyle={{paddingTop: 15, paddingBottom: 100}}
+                  ItemSeparatorComponent={() => <View style={{height: 10}} />}
+                />
 
                 {/* BANNER */}
                 <View style={[styles.bannerContainer, { paddingBottom: insets.bottom + 10, backgroundColor: theme.surface, borderTopColor: theme.border }]}>
@@ -320,8 +351,8 @@ jobs:
                     paddingTop: insets.top + 20
                 }]}>
                    <View style={{paddingHorizontal: 20, marginBottom: 30}}>
-                      <Text style={{fontSize: 28, fontWeight: '800', color: theme.text}}>Ayarlar</Text>
-                      <Text style={{fontSize: 14, color: theme.subText, marginTop: 5}}>Uygulama Tercihleri</Text>
+                      <Text style={{fontSize: 26, fontWeight: '800', color: theme.text}}>{T.settings}</Text>
+                      <Text style={{fontSize: 14, color: theme.subText, marginTop: 5}}>{T.appPref}</Text>
                    </View>
 
                    <ScrollView style={{flex:1}}>
@@ -367,8 +398,8 @@ jobs:
                           </View>
                           
                           <View style={{alignItems:'center', marginBottom:20}}>
-                             <Text style={{color: theme.subText, fontSize:14}}>{selectedItem?.k.replace('_',' ')}</Text>
-                             <Text style={{color: theme.gold, fontSize:32, fontWeight:'800', marginVertical:5}}>{selectedItem?.s} ₺</Text>
+                             <Text style={{color: theme.subText, fontSize:14}}>{selectedItem?.isim}</Text>
+                             <Text style={{color: theme.gold, fontSize:32, fontWeight:'800', marginVertical:5}}>{selectedItem?.satis} ₺</Text>
                           </View>
 
                           <TextInput 
@@ -463,4 +494,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Pro Mode: iOS Style + Side Menu" --non-interactive
+          eas update --branch preview --message "Offline Mode: Static Data + Trend Fix" --non-interactive
