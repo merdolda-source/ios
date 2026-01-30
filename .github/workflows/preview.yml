@@ -1,4 +1,4 @@
-name: EminXtream Fix & Calculator
+name: EminXtream Ultimate Pro
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK
+      # 1. TEMİZLİK (Her şeyi sıfırla)
       - name: 🧹 Derin Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js App.js GoogleService-Info.plist
 
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 20
 
-      # 2. PACKAGE.JSON
+      # 2. PACKAGE.JSON (Gerekli Paketler)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -46,7 +46,7 @@ jobs:
           }
           EOF
 
-      # 3. BABEL CONFIG
+      # 3. BABEL CONFIG (Derleme için şart)
       - name: ⚙️ Babel Config Oluştur
         run: |
           cat > babel.config.js <<'EOF'
@@ -67,45 +67,52 @@ jobs:
           module.exports = config;
           EOF
 
-      # 5. APP.JS (HATA DÜZELTİLDİ + HESAP MAKİNESİ EKLENDİ)
-      - name: 📱 App.js Oluştur (Fixed Syntax)
+      # 5. APP.JS (FULL ÖZELLİKLİ & HATASIZ KOD)
+      - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
-          import React, { useState, useEffect } from 'react';
+          import React, { useState, useEffect, useRef } from 'react';
           import { 
             Text, View, FlatList, SafeAreaView, ActivityIndicator, 
-            StatusBar, TouchableOpacity, StyleSheet, Modal, Platform, TextInput, Keyboard 
+            StatusBar, TouchableOpacity, StyleSheet, Modal, Platform, 
+            TextInput, Keyboard, RefreshControl, Dimensions 
           } from 'react-native';
           import { Ionicons } from '@expo/vector-icons';
 
           const URL = "https://imdatgel.site/harem/piyasa_cache.json";
+          const { width } = Dimensions.get('window');
 
           export default function App() {
-            // --- STATE ---
+            // --- STATE YÖNETİMİ ---
             const [data, setData] = useState([]);
-            const [prevData, setPrevData] = useState({});
+            const [prevData, setPrevData] = useState({}); 
             const [loading, setLoading] = useState(true);
-            const [isDarkMode, setIsDarkMode] = useState(true);
-            const [currentTime, setCurrentTime] = useState("");
+            const [refreshing, setRefreshing] = useState(false);
+            const [isDarkMode, setIsDarkMode] = useState(true); 
+            const [currentTime, setCurrentTime] = useState(""); 
             
-            // Hesap Makinesi State'leri
-            const [modalVisible, setModalVisible] = useState(false);
+            // Reklam Sayacı
+            const [refreshCount, setRefreshCount] = useState(0); 
+            const [showInterstitial, setShowInterstitial] = useState(false); 
+
+            // Hesap Makinesi
+            const [calcVisible, setCalcVisible] = useState(false);
             const [selectedItem, setSelectedItem] = useState(null);
             const [amount, setAmount] = useState('');
-            const [result, setResult] = useState(null);
+            const [calcResult, setCalcResult] = useState(null);
 
             // --- TEMA ---
             const theme = isDarkMode ? {
               bg: '#0F172A', card: '#1E293B', text: '#F8FAFC', subText: '#94A3B8',
               gold: '#F59E0B', green: '#10B981', red: '#EF4444', border: '#334155',
-              modal: '#1E293B', input: '#334155'
+              banner: '#000000', modal: '#1E293B', input: '#334155'
             } : {
               bg: '#F1F5F9', card: '#FFFFFF', text: '#1E293B', subText: '#64748B',
               gold: '#D97706', green: '#059669', red: '#DC2626', border: '#E2E8F0',
-              modal: '#FFFFFF', input: '#E2E8F0'
+              banner: '#E2E8F0', modal: '#FFFFFF', input: '#F1F5F9'
             };
 
-            // --- SAAT ---
+            // --- 1. CANLI SAAT ---
             useEffect(() => {
               const timer = setInterval(() => {
                 setCurrentTime(new Date().toLocaleTimeString('tr-TR'));
@@ -113,12 +120,14 @@ jobs:
               return () => clearInterval(timer);
             }, []);
 
-            // --- VERİ ÇEKME ---
-            const loadData = async (isAutoRefresh = false) => {
-              if (!isAutoRefresh) setLoading(true);
+            // --- 2. VERİ ÇEKME ---
+            const loadData = async (isAuto = false) => {
+              if (!isAuto) setLoading(true);
+              
               try {
                 const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
                 const json = await resp.json();
+                
                 if (Array.isArray(json)) {
                   setData(currentData => {
                     const priceMap = {};
@@ -126,40 +135,58 @@ jobs:
                     setPrevData(priceMap);
                     return json;
                   });
+
+                  // Reklam Sayacı (4 yenilemede 1 reklam)
+                  setRefreshCount(prev => {
+                    const newVal = prev + 1;
+                    if (newVal > 0 && newVal % 4 === 0) {
+                      setTimeout(() => setShowInterstitial(true), 1500);
+                    }
+                    return newVal;
+                  });
                 }
-              } catch (e) { console.error(e); } finally { setLoading(false); }
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setLoading(false);
+                setRefreshing(false);
+              }
             };
 
+            // Otomatik Yenileme (30 sn)
             useEffect(() => {
-              loadData();
+              loadData(); 
               const interval = setInterval(() => loadData(true), 30000);
               return () => clearInterval(interval);
             }, []);
 
-            // --- HESAP MAKİNESİ FONKSİYONLARI ---
+            const onRefresh = () => {
+              setRefreshing(true);
+              loadData(true);
+            };
+
+            // --- HESAP MAKİNESİ ---
             const openCalculator = (item) => {
               setSelectedItem(item);
               setAmount('');
-              setResult(null);
-              setModalVisible(true);
+              setCalcResult(null);
+              setCalcVisible(true);
             };
 
-            const calculate = (text) => {
+            const handleCalculate = (text) => {
               setAmount(text);
-              if (selectedItem && text) {
-                const val = parseFloat(text.replace(',', '.'));
-                const price = parseFloat(selectedItem.s);
-                if (!isNaN(val)) {
-                  setResult((val * price).toFixed(2));
-                } else {
-                  setResult(null);
-                }
-              } else {
-                setResult(null);
+              if (!text || !selectedItem) {
+                setCalcResult(null);
+                return;
+              }
+              const val = parseFloat(text.replace(',', '.'));
+              const price = parseFloat(selectedItem.s);
+              if (!isNaN(val)) {
+                setCalcResult((val * price).toFixed(2));
               }
             };
 
-            // --- İBRE MANTIĞI ---
+            // --- İBRE (YÖN) ---
             const getTrendIcon = (symbol, currentPriceStr) => {
               const current = parseFloat(currentPriceStr);
               const old = prevData[symbol];
@@ -174,10 +201,12 @@ jobs:
               const trend = getTrendIcon(item.k, item.s);
               const symbolClean = item.k.replace('_', ' ');
 
+              // activeOpacity={0.7} düzeltildi (Syntax Error buradaydı)
               return (
-                // DÜZELTME BURADA YAPILDI: activeOpacity={0.7}
                 <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
                   <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                    
+                    {/* SOL: İkon & İsim */}
                     <View style={{flexDirection:'row', alignItems:'center'}}>
                       <View style={[styles.iconBox, { backgroundColor: isDarkMode ? 'rgba(245,158,11,0.2)' : 'rgba(217,119,6,0.1)' }]}>
                         <Text style={{fontSize:18, fontWeight:'bold', color: theme.gold}}>
@@ -190,6 +219,7 @@ jobs:
                       </View>
                     </View>
 
+                    {/* SAĞ: Fiyat & İbre */}
                     <View style={{alignItems:'flex-end'}}>
                       <View style={{flexDirection:'row', alignItems:'center'}}>
                         <Text style={{color: theme.text, fontSize:18, fontWeight:'bold', marginRight: 5}}>
@@ -212,10 +242,12 @@ jobs:
                 <View style={[styles.header, { borderBottomColor: theme.border }]}>
                   <View>
                     <Text style={[styles.headerTitle, { color: theme.text }]}>Piyasa<Text style={{color: theme.gold}}>Pro</Text></Text>
-                    <Text style={{color: theme.subText, fontSize: 10}}>Hesaplamak için karta dokun</Text>
+                    <Text style={{color: theme.subText, fontSize: 10}}>Hesaplamak için karta tıkla</Text>
                   </View>
                   <View style={{flexDirection:'row', alignItems:'center'}}>
-                    <Text style={[styles.clock, { color: theme.gold, backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>{currentTime}</Text>
+                    <Text style={[styles.clock, { color: theme.gold, backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
+                      {currentTime}
+                    </Text>
                     <TouchableOpacity onPress={() => setIsDarkMode(!isDarkMode)} style={{marginLeft: 10, padding:5}}>
                       <Ionicons name={isDarkMode ? "sunny" : "moon"} size={24} color={theme.text} />
                     </TouchableOpacity>
@@ -230,51 +262,74 @@ jobs:
                     data={data}
                     keyExtractor={(item) => item.k}
                     renderItem={renderItem}
-                    contentContainerStyle={{paddingBottom: 20, paddingTop: 10}}
+                    contentContainerStyle={{paddingBottom: 80, paddingTop: 10}}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
                   />
                 )}
 
-                {/* HESAP MAKİNESİ MODALI */}
-                <Modal visible={modalVisible} transparent={true} animationType="slide" onRequestClose={() => setModalVisible(false)}>
+                {/* BANNER REKLAM (Test) */}
+                <View style={[styles.bannerContainer, { backgroundColor: theme.banner, borderTopColor: theme.border }]}>
+                  <Text style={{color: theme.subText, fontSize: 9, marginBottom: 2}}>REKLAM ALANI</Text>
+                  <View style={{width: 320, height: 50, backgroundColor: isDarkMode ? '#333' : '#CCC', justifyContent:'center', alignItems:'center'}}>
+                    <Text style={{color: isDarkMode ? '#FFF' : '#000', fontWeight:'bold', letterSpacing:1}}>BANNER ADS</Text>
+                  </View>
+                </View>
+
+                {/* GEÇİŞ REKLAMI (Modal) */}
+                <Modal visible={showInterstitial} transparent={true} animationType="fade" onRequestClose={() => setShowInterstitial(false)}>
+                  <View style={styles.modalOverlay}>
+                    <View style={[styles.interstitialBox, { backgroundColor: theme.card }]}>
+                      <TouchableOpacity onPress={() => setShowInterstitial(false)} style={styles.closeBtn}>
+                         <Ionicons name="close" size={24} color="#FFF" />
+                      </TouchableOpacity>
+                      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+                        <Ionicons name="star" size={50} color={theme.gold} style={{marginBottom:10}} />
+                        <Text style={{color: theme.text, fontSize:20, fontWeight:'bold', marginBottom:10}}>REKLAM</Text>
+                        <Text style={{color: theme.subText, textAlign:'center'}}>
+                          Bu bir test geçiş reklamıdır.{"\n"}Gerçek uygulamada burada AdMob çıkacak.
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </Modal>
+
+                {/* HESAP MAKİNESİ (Modal) */}
+                <Modal visible={calcVisible} transparent={true} animationType="slide" onRequestClose={() => setCalcVisible(false)}>
                   <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => Keyboard.dismiss()}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.modal, borderColor: theme.gold }]}>
+                    <View style={[styles.calcContent, { backgroundColor: theme.modal, borderColor: theme.gold }]}>
                       
-                      {/* Başlık ve Kapat */}
+                      {/* Başlık */}
                       <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
-                        <Text style={{color: theme.text, fontSize:20, fontWeight:'bold'}}>
+                        <Text style={{color: theme.text, fontSize:18, fontWeight:'bold'}}>
                           {selectedItem?.k.replace('_', ' ')} Hesapla
                         </Text>
-                        <TouchableOpacity onPress={() => setModalVisible(false)}>
-                          <Ionicons name="close-circle" size={30} color={theme.red} />
+                        <TouchableOpacity onPress={() => setCalcVisible(false)}>
+                          <Ionicons name="close-circle" size={28} color={theme.red} />
                         </TouchableOpacity>
                       </View>
 
-                      {/* Bilgi */}
-                      <View style={{marginBottom:20}}>
-                        <Text style={{color: theme.subText}}>Anlık Satış Fiyatı:</Text>
-                        <Text style={{color: theme.gold, fontSize:24, fontWeight:'bold'}}>{selectedItem?.s} ₺</Text>
-                      </View>
+                      {/* Bilgiler */}
+                      <Text style={{color: theme.subText}}>Birim Fiyat:</Text>
+                      <Text style={{color: theme.gold, fontSize:22, fontWeight:'bold', marginBottom:15}}>{selectedItem?.s} ₺</Text>
 
-                      {/* Input */}
-                      <Text style={{color: theme.text, marginBottom:5}}>Miktar (Adet/Gram):</Text>
+                      <Text style={{color: theme.text, marginBottom:5}}>Miktar:</Text>
                       <TextInput 
                         style={[styles.input, { backgroundColor: theme.input, color: theme.text, borderColor: theme.border }]}
-                        placeholder="Örn: 10"
+                        placeholder="0"
                         placeholderTextColor={theme.subText}
                         keyboardType="numeric"
                         value={amount}
-                        onChangeText={calculate}
+                        onChangeText={handleCalculate}
                         autoFocus={true}
                       />
 
                       {/* Sonuç */}
-                      {result && (
-                        <View style={{marginTop:20, padding:15, backgroundColor: theme.green, borderRadius:10, alignItems:'center'}}>
-                          <Text style={{color:'#FFF', fontWeight:'bold', fontSize:14}}>TOPLAM TUTAR</Text>
-                          <Text style={{color:'#FFF', fontWeight:'900', fontSize:28}}>{result} ₺</Text>
+                      {calcResult && (
+                        <View style={{marginTop:20, padding:15, backgroundColor: theme.green, borderRadius:12, alignItems:'center'}}>
+                          <Text style={{color:'#FFF', fontSize:12, fontWeight:'bold', opacity:0.8}}>TOPLAM TUTAR</Text>
+                          <Text style={{color:'#FFF', fontSize:26, fontWeight:'900'}}>{calcResult} ₺</Text>
                         </View>
                       )}
-
                     </View>
                   </TouchableOpacity>
                 </Modal>
@@ -288,14 +343,20 @@ jobs:
             center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
             header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1 },
             headerTitle: { fontSize: 24, fontWeight: '800' },
-            clock: { fontSize: 14, fontWeight: 'bold', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, overflow: 'hidden' },
-            card: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, marginHorizontal: 16, marginBottom: 12, borderRadius: 16, borderWidth: 1, shadowColor: "#000", shadowOffset: {width:0, height:2}, shadowOpacity:0.1, elevation:3 },
-            iconBox: { width: 40, height: 40, borderRadius: 12, justifyContent:'center', alignItems:'center', marginRight:12 },
+            clock: { fontSize: 13, fontWeight: 'bold', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, overflow: 'hidden' },
+            card: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, marginHorizontal: 16, marginBottom: 10, borderRadius: 16, borderWidth: 1, shadowColor: "#000", shadowOffset: {width:0, height:2}, shadowOpacity:0.1, elevation:3 },
+            iconBox: { width: 42, height: 42, borderRadius: 12, justifyContent:'center', alignItems:'center', marginRight:12 },
             
-            // Modal Stilleri
-            modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-            modalContent: { width: '90%', padding: 20, borderRadius: 20, borderWidth: 1, elevation: 10 },
-            input: { height: 50, borderRadius: 10, paddingHorizontal: 15, borderWidth: 1, fontSize: 18 }
+            // Banner
+            bannerContainer: { position: 'absolute', bottom: 0, width: '100%', height: 75, justifyContent: 'center', alignItems: 'center', borderTopWidth: 1, paddingBottom: Platform.OS === 'ios' ? 15 : 0 },
+            
+            // Modals
+            modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+            interstitialBox: { width: '85%', height: '50%', borderRadius: 20, padding: 20 },
+            closeBtn: { alignSelf: 'flex-end', backgroundColor: '#EF4444', borderRadius: 20, padding: 4 },
+            
+            calcContent: { width: '90%', padding: 20, borderRadius: 24, borderWidth: 1, elevation: 10 },
+            input: { height: 50, borderRadius: 12, paddingHorizontal: 15, borderWidth: 1, fontSize: 18 }
           });
           EOF
 
@@ -340,4 +401,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Fixed Syntax & Added Calculator" --non-interactive
+          eas update --branch preview --message "Ultimate Pro: Calculator Fix" --non-interactive
