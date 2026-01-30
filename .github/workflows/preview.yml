@@ -1,12 +1,10 @@
-name: EminXtream Real AdMob & Layout Fix
+name: EminXtream iOS BUILD (IPA)
 
 on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
+  workflow_dispatch: # Bu işlemi sadece sen butona basınca başlatır (Otomatik çalışmaz, çünkü build hakkın sınırlı)
 
 jobs:
-  publish-preview:
+  build-ios:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +20,9 @@ jobs:
         with:
           node-version: 20
 
-      # 2. PACKAGE.JSON (GERÇEK ADMOB EKLENDİ)
+      # 2. CONFIG DOSYALARI
+
+      # A) PACKAGE.JSON (Gerçek AdMob Kütüphanesi Dahil)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -38,7 +38,8 @@ jobs:
               "fs-extra": "^11.2.0",
               "@expo/vector-icons": "~14.0.0",
               "react-native-google-mobile-ads": "^13.0.0",
-              "react-native-safe-area-context": "4.12.0"
+              "react-native-safe-area-context": "4.12.0",
+              "expo-build-properties": "~0.12.0"
             },
             "devDependencies": {
               "@babel/core": "^7.25.0",
@@ -48,28 +49,31 @@ jobs:
           }
           EOF
 
-      # 3. BABEL CONFIG
-      - name: ⚙️ Babel Config Oluştur
+      # B) EAS.JSON (Build Ayarları - ÖNEMLİ)
+      - name: 📄 eas.json Oluştur
         run: |
-          cat > babel.config.js <<'EOF'
-          module.exports = function(api) {
-            api.cache(true);
-            return {
-              presets: ['babel-preset-expo'],
-            };
-          };
+          cat > eas.json <<'EOF'
+          {
+            "cli": {
+              "version": ">= 10.0.0"
+            },
+            "build": {
+              "preview": {
+                "distribution": "internal",
+                "ios": {
+                  "simulator": false
+                }
+              },
+              "production": {
+                "ios": {
+                  "resourceClass": "medium"
+                }
+              }
+            }
+          }
           EOF
 
-      # 4. METRO CONFIG
-      - name: ⚙️ Metro Config Oluştur
-        run: |
-          cat > metro.config.js <<'EOF'
-          const { getDefaultConfig } = require('expo/metro-config');
-          const config = getDefaultConfig(__dirname);
-          module.exports = config;
-          EOF
-
-      # 5. APP.JS (GERÇEK REKLAMLAR + LAYOUT FIX)
+      # C) APP.JS (Gerçek AdMob Entegrasyonu)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
@@ -77,136 +81,88 @@ jobs:
           import { 
             Text, View, FlatList, ActivityIndicator, StatusBar, TouchableOpacity, 
             StyleSheet, Modal, Platform, TextInput, Keyboard, RefreshControl, 
-            Dimensions, KeyboardAvoidingView, Alert 
+            KeyboardAvoidingView 
           } from 'react-native';
           import { Ionicons } from '@expo/vector-icons';
-          import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-          import mobileAds, { BannerAd, BannerAdSize, InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+          import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+          // GERÇEK ADMOB KÜTÜPHANESİ
+          import { BannerAd, BannerAdSize, InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 
-          // --- ADMOB IDLERİ (GERÇEK) ---
-          // Test sırasında gerçek ID kullanmak bazen reklam göstermez (Google engeller).
-          // Eğer reklam gelmezse TestIds.BANNER kullanmayı deneyin.
+          // --- REKLAM ID'LERİ ---
+          // NOT: Build alırken gerçek ID kullanmak bazen risklidir (banlanma riski).
+          // İlk denemede TestIds.BANNER kullanıp, çalıştığını görünce gerçek ID'ye geçmek daha sağlıklıdır.
+          // Şimdilik senin verdiğin gerçek ID'leri koyuyorum.
           const BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
           const INTERSTITIAL_ID = "ca-app-pub-2289573527937577/6951577531";
-
           const URL = "https://imdatgel.site/harem/piyasa_cache.json";
 
-          // --- GEÇİŞ REKLAMI KURULUMU ---
-          // Google, reklamı göstermeden önce yüklemenizi ister.
           const interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_ID, {
             requestNonPersonalizedAdsOnly: true,
           });
 
-          // --- ANA COMPONENT ---
           function MainApp() {
-            const insets = useSafeAreaInsets(); // Çentik boşlukları için
-
-            // State
+            const insets = useSafeAreaInsets();
             const [data, setData] = useState([]);
-            const [prevData, setPrevData] = useState({});
             const [loading, setLoading] = useState(true);
             const [refreshing, setRefreshing] = useState(false);
+            const [interstitialLoaded, setInterstitialLoaded] = useState(false);
             const [isDarkMode, setIsDarkMode] = useState(true);
             const [currentTime, setCurrentTime] = useState("");
             
-            // Reklam
-            const [refreshCount, setRefreshCount] = useState(0);
-            const [interstitialLoaded, setInterstitialLoaded] = useState(false);
-
             // Hesap Makinesi
             const [calcVisible, setCalcVisible] = useState(false);
             const [selectedItem, setSelectedItem] = useState(null);
             const [amount, setAmount] = useState('');
             const [calcResult, setCalcResult] = useState(null);
 
-            // Tema
             const theme = isDarkMode ? {
               bg: '#0F172A', card: '#1E293B', text: '#F8FAFC', subText: '#94A3B8',
               gold: '#F59E0B', green: '#10B981', red: '#EF4444', border: '#334155',
-              banner: '#000000', modal: '#1E293B', input: '#334155'
+              modal: '#1E293B', input: '#334155'
             } : {
               bg: '#F1F5F9', card: '#FFFFFF', text: '#1E293B', subText: '#64748B',
               gold: '#D97706', green: '#059669', red: '#DC2626', border: '#E2E8F0',
-              banner: '#E2E8F0', modal: '#FFFFFF', input: '#F1F5F9'
+              modal: '#FFFFFF', input: '#F1F5F9'
             };
 
-            // --- BAŞLANGIÇ AYARLARI ---
             useEffect(() => {
-              // AdMob Başlat
-              mobileAds()
-                .initialize()
-                .then(adapterStatuses => {
-                  console.log('AdMob Başlatıldı', adapterStatuses);
-                });
-
-              // Geçiş Reklamı Listener
-              const unsubscribe = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+              const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
                 setInterstitialLoaded(true);
               });
-              
               const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-                 setInterstitialLoaded(false);
-                 interstitial.load(); // Kapanınca yenisini yükle
+                setInterstitialLoaded(false);
+                interstitial.load();
               });
-
-              interstitial.load(); // İlk yükleme
-
-              // Saat
+              interstitial.load();
+              
               const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString('tr-TR')), 1000);
-
               return () => {
-                clearInterval(timer);
-                unsubscribe();
+                unsubscribeLoaded();
                 unsubscribeClosed();
+                clearInterval(timer);
               };
             }, []);
 
-            // --- VERİ ÇEKME ---
             const loadData = async (isAuto = false) => {
               if (!isAuto) setLoading(true);
               try {
                 const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
                 const json = await resp.json();
                 if (Array.isArray(json)) {
-                  setData(current => {
-                    const map = {};
-                    current.forEach(i => map[i.k] = parseFloat(i.s));
-                    setPrevData(map);
-                    return json;
-                  });
-
-                  // Reklam Sayacı
-                  setRefreshCount(prev => {
-                    const newVal = prev + 1;
-                    // 4. yenilemede reklam göster
-                    if (newVal > 0 && newVal % 4 === 0) {
-                      if (interstitialLoaded) {
-                        interstitial.show();
-                      }
-                    }
-                    return newVal;
-                  });
+                  setData(json);
+                  // Rastgele reklam gösterimi (her yenilemede %25 şans)
+                  if (Math.random() < 0.25 && interstitialLoaded) {
+                     interstitial.show();
+                  }
                 }
-              } catch (e) {
-                console.error(e);
-              } finally {
-                setLoading(false);
-                setRefreshing(false);
-              }
+              } catch (e) { console.error(e); } 
+              finally { setLoading(false); setRefreshing(false); }
             };
 
-            useEffect(() => {
-              loadData();
-              const interval = setInterval(() => loadData(true), 30000);
-              return () => clearInterval(interval);
-            }, []);
+            useEffect(() => { loadData(); }, []);
 
-            const onRefresh = () => {
-              setRefreshing(true);
-              loadData(true);
-            };
+            const onRefresh = () => { setRefreshing(true); loadData(true); };
 
-            // --- HESAPLA ---
             const openCalculator = (item) => {
               setSelectedItem(item);
               setAmount('');
@@ -216,139 +172,88 @@ jobs:
 
             const handleCalculate = (text) => {
               setAmount(text);
-              if (!text || !selectedItem) {
-                setCalcResult(null);
-                return;
+              if (selectedItem && text) {
+                const val = parseFloat(text.replace(',', '.'));
+                const price = parseFloat(selectedItem.s);
+                if (!isNaN(val)) setCalcResult((val * price).toFixed(2));
               }
-              const val = parseFloat(text.replace(',', '.'));
-              const price = parseFloat(selectedItem.s);
-              if (!isNaN(val)) setCalcResult((val * price).toFixed(2));
             };
 
-            // --- İKON ---
-            const getTrendIcon = (symbol, s) => {
-              const cur = parseFloat(s);
-              const old = prevData[symbol];
-              if (!old) return {n:'remove', c:theme.subText};
-              if (cur > old) return {n:'caret-up', c:theme.green};
-              if (cur < old) return {n:'caret-down', c:theme.red};
-              return {n:'remove', c:theme.subText};
-            };
-
-            // --- RENDER ---
-            const renderItem = ({ item }) => {
-              const trend = getTrendIcon(item.k, item.s);
-              const symbol = item.k.replace('_', ' ');
-
-              return (
-                <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
-                  <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                    <View style={{flexDirection:'row', alignItems:'center'}}>
-                      <View style={[styles.iconBox, { backgroundColor: isDarkMode ? 'rgba(245,158,11,0.2)' : 'rgba(217,119,6,0.1)' }]}>
-                        <Text style={{fontSize:18, fontWeight:'bold', color: theme.gold}}>{symbol.charAt(0)}</Text>
-                      </View>
-                      <View>
-                        <Text style={{color: theme.text, fontWeight:'bold', fontSize:16}}>{symbol}</Text>
-                        <Text style={{color: theme.subText, fontSize:11}}>{item.t?.split(' ')[1]}</Text>
-                      </View>
-                    </View>
-                    <View style={{alignItems:'flex-end'}}>
-                      <View style={{flexDirection:'row', alignItems:'center'}}>
-                        <Text style={{color: theme.text, fontSize:18, fontWeight:'bold', marginRight: 5}}>
-                          {parseFloat(item.s).toFixed(2)}
-                        </Text>
-                        <Ionicons name={trend.n} size={20} color={trend.c} />
-                      </View>
-                      <Text style={{color: theme.subText, fontSize:12}}>Alış: {parseFloat(item.a).toFixed(2)}</Text>
-                    </View>
+            const renderItem = ({ item }) => (
+              <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
+                <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <View>
+                     <Text style={{color: theme.text, fontWeight:'bold', fontSize:16}}>{item.k.replace('_', ' ')}</Text>
+                     <Text style={{color: theme.subText, fontSize:11}}>{item.t?.split(' ')[1]}</Text>
                   </View>
-                </TouchableOpacity>
-              );
-            };
+                  <View style={{alignItems:'flex-end'}}>
+                     <Text style={{color: theme.text, fontSize:18, fontWeight:'bold'}}>{parseFloat(item.s).toFixed(2)}</Text>
+                     <Text style={{color: theme.subText, fontSize:12}}>Alış: {parseFloat(item.a).toFixed(2)}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
 
             return (
               <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
-                <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.bg} />
-
+                <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+                
                 {/* HEADER */}
                 <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                  <View>
-                    <Text style={[styles.headerTitle, { color: theme.text }]}>Piyasa<Text style={{color: theme.gold}}>Pro</Text></Text>
-                    <Text style={{color: theme.subText, fontSize: 11}}>Hesaplamak için dokunun</Text>
-                  </View>
-                  <View style={{flexDirection:'row', alignItems:'center'}}>
-                    <Text style={[styles.clock, { color: theme.gold, backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>{currentTime}</Text>
-                    <TouchableOpacity onPress={() => setIsDarkMode(!isDarkMode)} style={{marginLeft: 10, padding:5}}>
-                      <Ionicons name={isDarkMode ? "sunny" : "moon"} size={24} color={theme.text} />
-                    </TouchableOpacity>
-                  </View>
+                   <Text style={[styles.title, { color: theme.text }]}>Piyasa<Text style={{color: theme.gold}}>Pro</Text></Text>
+                   <View style={{flexDirection:'row', alignItems:'center'}}>
+                      <Text style={[styles.clock, { color: theme.gold, backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>{currentTime}</Text>
+                      <TouchableOpacity onPress={() => setIsDarkMode(!isDarkMode)} style={{marginLeft:10}}>
+                        <Ionicons name={isDarkMode ? "sunny" : "moon"} size={24} color={theme.text} />
+                      </TouchableOpacity>
+                   </View>
                 </View>
 
                 {/* LISTE */}
-                {loading && !data.length ? (
-                  <View style={styles.center}><ActivityIndicator size="large" color={theme.gold} /></View>
-                ) : (
+                {loading ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:20}} /> : (
                   <FlatList
                     data={data}
                     keyExtractor={item => item.k}
                     renderItem={renderItem}
-                    contentContainerStyle={{paddingBottom: 80, paddingTop: 10}}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
+                    contentContainerStyle={{paddingBottom: 60}}
                   />
                 )}
 
-                {/* BANNER REKLAM (GERÇEK) */}
-                <View style={[styles.bannerContainer, { backgroundColor: theme.bg, borderTopColor: theme.border, paddingBottom: insets.bottom }]}>
+                {/* REKLAM BANNER */}
+                <View style={{alignItems:'center', borderTopWidth:1, borderColor:theme.border, paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0 }}>
                   <BannerAd
                     unitId={BANNER_ID}
                     size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-                    requestOptions={{
-                      requestNonPersonalizedAdsOnly: true,
-                    }}
                   />
                 </View>
 
-                {/* HESAP MAKİNESİ MODAL (Klavye Sorunu Çözüldü) */}
+                {/* HESAP MAKİNESİ */}
                 <Modal visible={calcVisible} transparent={true} animationType="slide" onRequestClose={() => setCalcVisible(false)}>
-                  <KeyboardAvoidingView 
-                    behavior={Platform.OS === "ios" ? "padding" : "height"}
-                    style={styles.modalOverlay}
-                  >
-                    <TouchableOpacity style={styles.modalOverlayTouch} activeOpacity={1} onPress={Keyboard.dismiss}>
-                      <View style={[styles.calcContent, { backgroundColor: theme.modal, borderColor: theme.gold }]}>
-                        <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
-                          <Text style={{color: theme.text, fontSize:18, fontWeight:'bold'}}>
-                            {selectedItem?.k.replace('_', ' ')} Hesapla
-                          </Text>
-                          <TouchableOpacity onPress={() => setCalcVisible(false)}>
-                            <Ionicons name="close-circle" size={30} color={theme.red} />
-                          </TouchableOpacity>
-                        </View>
-
-                        <Text style={{color: theme.subText}}>Birim Fiyat:</Text>
-                        <Text style={{color: theme.gold, fontSize:22, fontWeight:'bold', marginBottom:15}}>{selectedItem?.s} ₺</Text>
-
-                        <Text style={{color: theme.text, marginBottom:5}}>Miktar:</Text>
-                        <TextInput 
-                          style={[styles.input, { backgroundColor: theme.input, color: theme.text, borderColor: theme.border }]}
-                          placeholder="0"
-                          placeholderTextColor={theme.subText}
-                          keyboardType="numeric"
-                          value={amount}
-                          onChangeText={handleCalculate}
-                        />
-
-                        {calcResult && (
-                          <View style={{marginTop:20, padding:15, backgroundColor: theme.green, borderRadius:12, alignItems:'center'}}>
-                            <Text style={{color:'#FFF', fontSize:12, fontWeight:'bold', opacity:0.8}}>TOPLAM TUTAR</Text>
-                            <Text style={{color:'#FFF', fontSize:26, fontWeight:'900'}}>{calcResult} ₺</Text>
+                  <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
+                    <TouchableOpacity style={{flex:1, justifyContent:'center', alignItems:'center', width:'100%'}} activeOpacity={1} onPress={Keyboard.dismiss}>
+                       <View style={[styles.calcContent, { backgroundColor: theme.modal, borderColor: theme.gold }]}>
+                          <View style={{flexDirection:'row', justifyContent:'space-between', marginBottom:20}}>
+                             <Text style={{color:theme.text, fontSize:18, fontWeight:'bold'}}>Hesapla</Text>
+                             <TouchableOpacity onPress={() => setCalcVisible(false)}>
+                                <Ionicons name="close-circle" size={30} color={theme.red} />
+                             </TouchableOpacity>
                           </View>
-                        )}
-                      </View>
+                          <Text style={{color: theme.gold, fontSize:22, fontWeight:'bold', marginBottom:15}}>{selectedItem?.s} ₺</Text>
+                          <TextInput 
+                             style={[styles.input, { backgroundColor: theme.input, color: theme.text, borderColor: theme.border }]}
+                             placeholder="Miktar" placeholderTextColor={theme.subText} keyboardType="numeric"
+                             value={amount} onChangeText={handleCalculate}
+                          />
+                          {calcResult && (
+                             <View style={{marginTop:20, padding:15, backgroundColor: theme.green, borderRadius:12, alignItems:'center'}}>
+                                <Text style={{color:'#FFF', fontSize:26, fontWeight:'900'}}>{calcResult} ₺</Text>
+                             </View>
+                          )}
+                       </View>
                     </TouchableOpacity>
                   </KeyboardAvoidingView>
                 </Modal>
-
               </View>
             );
           }
@@ -363,23 +268,17 @@ jobs:
 
           const styles = StyleSheet.create({
             container: { flex: 1 },
-            center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-            header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1 },
-            headerTitle: { fontSize: 24, fontWeight: '800' },
-            clock: { fontSize: 13, fontWeight: 'bold', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, overflow: 'hidden' },
-            card: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, marginHorizontal: 16, marginBottom: 10, borderRadius: 16, borderWidth: 1, shadowColor: "#000", shadowOffset: {width:0, height:2}, shadowOpacity:0.1, elevation:3 },
-            iconBox: { width: 42, height: 42, borderRadius: 12, justifyContent:'center', alignItems:'center', marginRight:12 },
-            
-            bannerContainer: { width: '100%', alignItems: 'center', borderTopWidth: 1 },
-            
+            header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1 },
+            title: { fontSize: 24, fontWeight: '800' },
+            clock: { fontSize: 13, fontWeight: 'bold', padding: 6, borderRadius: 6, overflow: 'hidden' },
+            card: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, marginHorizontal: 16, marginBottom: 10, borderRadius: 16, borderWidth: 1 },
             modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center' },
-            modalOverlayTouch: { flex: 1, justifyContent: 'center', alignItems: 'center' },
             calcContent: { width: '90%', padding: 20, borderRadius: 24, borderWidth: 1, elevation: 10 },
             input: { height: 50, borderRadius: 12, paddingHorizontal: 15, borderWidth: 1, fontSize: 18 }
           });
           EOF
 
-      # 6. APP.JSON (PLUGIN AÇIK)
+      # D) APP.JSON (PLUGIN AÇIK - IPA İÇİN ŞART)
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
@@ -392,12 +291,16 @@ jobs:
               "userInterfaceStyle": "automatic",
               "ios": {
                 "bundleIdentifier": "com.piyasapro.app",
-                "infoPlist": {
-                  "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+                "supportsTablet": true,
+                "config": {
+                  "googleMobileAdsAppId": "ca-app-pub-2289573527937577~7422350827"
                 }
               },
               "android": {
-                "package": "com.piyasapro.app"
+                "package": "com.piyasapro.app",
+                "config": {
+                   "googleMobileAdsAppId": "ca-app-pub-2289573527937577~7422350827"
+                }
               },
               "plugins": [
                 [
@@ -406,13 +309,31 @@ jobs:
                     "androidAppId": "ca-app-pub-2289573527937577~7422350827",
                     "iosAppId": "ca-app-pub-2289573527937577~7422350827"
                   }
-                ]
+                ],
+                "expo-build-properties"
               ],
-              "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
-              "runtimeVersion": { "policy": "appVersion" },
               "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
             }
           }
+          EOF
+
+      - name: ⚙️ Babel Config Oluştur
+        run: |
+          cat > babel.config.js <<'EOF'
+          module.exports = function(api) {
+            api.cache(true);
+            return {
+              presets: ['babel-preset-expo'],
+            };
+          };
+          EOF
+      
+      - name: ⚙️ Metro Config Oluştur
+        run: |
+          cat > metro.config.js <<'EOF'
+          const { getDefaultConfig } = require('expo/metro-config');
+          const config = getDefaultConfig(__dirname);
+          module.exports = config;
           EOF
 
       - name: 🖼 Assets Oluştur
@@ -425,8 +346,11 @@ jobs:
           npm install -g eas-cli
           npm install --legacy-peer-deps
 
-      - name: 🚀 Gönder
+      # --- İŞTE SİHİRLİ KOMUT BURASI ---
+      # Artık 'update' değil 'build' yapıyoruz.
+      # non-interactive: Apple hesabını sormadan, önceden tanımlı hesabı kullanır.
+      - name: 🏗 IPA Oluştur (Build)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Real AdMob + Safe Layout" --non-interactive
+          eas build --platform ios --profile preview --non-interactive
