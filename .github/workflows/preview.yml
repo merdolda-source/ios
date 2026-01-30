@@ -1,4 +1,4 @@
-name: ANLIK PİYASA - FINAL JSON STRUCTURE
+name: ANLIK PİYASA - FINAL API FIX
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish-final-json:
+  publish-api-fix:
     runs-on: ubuntu-latest
 
     steps:
@@ -39,7 +39,7 @@ jobs:
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 3. PACKAGE.JSON (AdMob Plugin YOK - Hata Vermesin Diye)
+      # 3. PACKAGE.JSON
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -81,7 +81,7 @@ jobs:
           const { getDefaultConfig } = require('expo/metro-config'); const config = getDefaultConfig(__dirname); module.exports = config;
           EOF
 
-      # 5. APP.JS (YENİ JSON YAPISI: doviz[] ve altin[])
+      # 5. APP.JS (YENİ JSON YAPISI - "veriler" OBJESİ İÇİNDE)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
@@ -99,7 +99,6 @@ jobs:
           const SCREEN_WIDTH = Dimensions.get('window').width;
           const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
 
-          // --- DİL PAKETİ ---
           const LANG = {
             tr: {
               tab_currency: "DÖVİZ", tab_gold: "ALTIN", buy: "Alış", sell: "Satış",
@@ -121,14 +120,12 @@ jobs:
             const insets = useSafeAreaInsets();
             const colorScheme = Appearance.getColorScheme();
             
-            // Veri State'leri
             const [currencies, setCurrencies] = useState([]);
             const [golds, setGolds] = useState([]);
             const [loading, setLoading] = useState(true);
             const [refreshing, setRefreshing] = useState(false);
-            const [activeTab, setActiveTab] = useState('currency'); // 'currency' | 'gold'
+            const [activeTab, setActiveTab] = useState('currency'); 
             
-            // Ayarlar
             const [themeMode, setThemeMode] = useState('auto');
             const [language, setLanguage] = useState('tr');
             const [menuOpen, setMenuOpen] = useState(false);
@@ -136,7 +133,6 @@ jobs:
             const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
             const fadeAnim = useRef(new Animated.Value(0)).current;
 
-            // Hesap Makinesi
             const [calcVisible, setCalcVisible] = useState(false);
             const [selectedItem, setSelectedItem] = useState(null);
             const [amount, setAmount] = useState('');
@@ -162,19 +158,24 @@ jobs:
               ]).start();
             }, [menuOpen]);
 
-            // --- YENİ VERİ ÇEKME (doviz ve altin ayrı geliyor) ---
+            // --- YENİ VERİ YAPISINA UYGUN PARSE İŞLEMİ ---
             const loadData = async (isAuto = false) => {
               if (!isAuto) setLoading(true);
               try {
                 const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
                 const json = await resp.json();
                 
-                // Gelen yapı: { "doviz": [...], "altin": [...] }
-                if (json.doviz && Array.isArray(json.doviz)) {
-                  setCurrencies(json.doviz);
-                }
-                if (json.altin && Array.isArray(json.altin)) {
-                  setGolds(json.altin);
+                // Yapı: { "veriler": { "doviz": [...], "altin": [...] } }
+                if (json.veriler) {
+                   if (json.veriler.doviz && Array.isArray(json.veriler.doviz)) {
+                     setCurrencies(json.veriler.doviz);
+                   }
+                   if (json.veriler.altin && Array.isArray(json.veriler.altin)) {
+                     setGolds(json.veriler.altin);
+                   }
+                } else if (json.data && Array.isArray(json.data)) {
+                   // Eski yapı fallback
+                   // ... eski kod buraya gerek yok, yeni yapı netleşti.
                 }
 
               } catch (e) { console.error(e); } 
@@ -184,11 +185,11 @@ jobs:
             useEffect(() => { loadData(); const i = setInterval(() => loadData(true), 15000); return () => clearInterval(i); }, []);
             const onRefresh = () => { setRefreshing(true); loadData(true); };
 
-            // --- FİYAT TEMİZLEME VE HESAPLAMA ---
+            // --- FİYAT TEMİZLEME ($ işaretini sil) ---
             const cleanPrice = (priceStr) => {
                if(!priceStr) return 0;
-               // Örnek: "$4.887,42" -> "$", "." silinir, "," nokta olur -> 4887.42
-               let clean = priceStr.replace('$', '').replace(/\./g, '').replace(',', '.').trim();
+               // "$4.887,42" -> 4887.42
+               let clean = priceStr.toString().replace('$', '').replace(/\./g, '').replace(',', '.').trim();
                return parseFloat(clean);
             };
 
@@ -203,9 +204,7 @@ jobs:
               }
             };
 
-            // --- OK RENGİ VE YÖNÜ ---
             const getStatusData = (yon) => {
-               // Gelen veri: "yukselis" veya "dusus"
                if(yon && yon.includes('yuksel')) return { color: theme.green, icon: 'caret-up' };
                if(yon && yon.includes('dusus')) return { color: theme.red, icon: 'caret-down' };
                return { color: theme.subText, icon: 'remove-outline' };
@@ -213,12 +212,13 @@ jobs:
 
             const renderItem = ({ item }) => {
               const status = getStatusData(item.yon);
-              
+              // İsim boşsa Kod'u kullan (Örn: Ons Altın için isim boş geliyor)
+              const displayName = (item.isim && item.isim.trim() !== "") ? item.isim : item.kod;
+
               return (
                 <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
                   <View style={[styles.card, { backgroundColor: theme.card }]}>
                     
-                    {/* SOL TARA: İKON VE KOD */}
                     <View style={{flexDirection:'row', alignItems:'center', flex:1}}>
                        <View style={[styles.iconBox, { backgroundColor: theme.tint }]}>
                           <Text style={{fontSize:16, fontWeight:'800', color: theme.gold}}>
@@ -227,14 +227,12 @@ jobs:
                        </View>
                        <View style={{marginLeft: 12, flex:1}}>
                           <Text style={{color: theme.text, fontWeight:'700', fontSize:16}} numberOfLines={1}>{item.kod}</Text>
-                          {/* İsim boşsa kodu yaz */}
                           <Text style={{color: theme.subText, fontSize:11, marginTop:2}} numberOfLines={1}>
-                             {item.isim && item.isim !== "" ? item.isim : item.kod}
+                             {displayName}
                           </Text>
                        </View>
                     </View>
 
-                    {/* SAĞ TARAF: FİYAT */}
                     <View style={{alignItems:'flex-end'}}>
                        <View style={{flexDirection:'row', alignItems:'center'}}>
                           <Text style={{color: theme.text, fontSize:17, fontWeight:'800', marginRight:4, fontVariant: ['tabular-nums']}}>
@@ -261,7 +259,6 @@ jobs:
               <View style={[styles.container, { backgroundColor: theme.bg }]}>
                 <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
                 
-                {/* HEADER */}
                 <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
                     <TouchableOpacity onPress={() => setMenuOpen(true)} style={styles.headerBtn}>
                        <Ionicons name="menu" size={28} color={theme.gold} />
@@ -270,7 +267,6 @@ jobs:
                     <View style={styles.headerBtn} /> 
                 </View>
 
-                {/* TABS */}
                 <View style={[styles.tabContainer, { backgroundColor: theme.surface }]}>
                    <TouchableOpacity onPress={() => setActiveTab('currency')} style={[styles.tabBtn, activeTab === 'currency' && { backgroundColor: theme.tabActive }]}>
                       <Text style={[styles.tabText, { color: activeTab === 'currency' ? theme.gold : theme.subText }]}>{T.tab_currency}</Text>
@@ -280,7 +276,6 @@ jobs:
                    </TouchableOpacity>
                 </View>
 
-                {/* LİSTE */}
                 {loading ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:50}} /> : (
                   <FlatList
                     data={activeTab === 'currency' ? currencies : golds} 
@@ -293,7 +288,6 @@ jobs:
                   />
                 )}
 
-                {/* REKLAM ALANI */}
                 <View style={[styles.bannerContainer, { paddingBottom: insets.bottom + 10, backgroundColor: theme.surface, borderTopColor: theme.border }]}>
                   <Text style={{color: theme.subText, fontSize:9, marginBottom:4, letterSpacing:1}}>{T.adSpace}</Text>
                   <View style={[styles.bannerBox, { backgroundColor: theme.tint, borderColor: theme.border }]}>
@@ -301,7 +295,6 @@ jobs:
                   </View>
                 </View>
 
-                {/* YAN MENÜ */}
                 {menuOpen && (
                   <Animated.View style={[styles.menuOverlay, { opacity: fadeAnim }]}>
                     <TouchableOpacity style={{flex:1}} onPress={() => setMenuOpen(false)} activeOpacity={1} />
@@ -335,7 +328,6 @@ jobs:
                     </ScrollView>
                 </Animated.View>
 
-                {/* HESAP MAKİNESİ */}
                 <Modal visible={calcVisible} transparent={true} animationType="slide" onRequestClose={() => setCalcVisible(false)}>
                   <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
                     <TouchableOpacity style={{flex:1, justifyContent:'flex-end'}} activeOpacity={1} onPress={() => setCalcVisible(false)}>
@@ -348,7 +340,10 @@ jobs:
                               </TouchableOpacity>
                            </View>
                            <View style={{alignItems:'center', marginBottom:20}}>
-                              <Text style={{color: theme.subText, fontSize:14}}>{selectedItem?.kod}</Text>
+                              {/* İsim boşsa kod görünür */}
+                              <Text style={{color: theme.subText, fontSize:14}}>
+                                 {(selectedItem?.isim && selectedItem.isim.trim() !== "") ? selectedItem.isim : selectedItem?.kod}
+                              </Text>
                               <Text style={{color: theme.gold, fontSize:32, fontWeight:'800', marginVertical:5}}>{selectedItem?.satis}</Text>
                            </View>
                            <TextInput 
@@ -358,7 +353,7 @@ jobs:
                            />
                            {calcResult && (
                               <View style={{marginTop:20, padding:16, backgroundColor: theme.green, borderRadius:16, alignItems:'center'}}>
-                                 <Text style={{color:'#FFF', fontSize:28, fontWeight:'800'}}>{calcResult}</Text>
+                                 <Text style={{color:'#FFF', fontSize:28, fontWeight:'800'}}>{calcResult} ₺</Text>
                               </View>
                            )}
                         </TouchableOpacity>
@@ -441,4 +436,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "JSON Structure Fixed" --non-interactive
+          eas update --branch preview --message "API JSON Fix" --non-interactive
