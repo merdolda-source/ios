@@ -1,4 +1,4 @@
-name: EminXtream Fix Final
+name: EminXtream Final Stable
 
 on:
   push:
@@ -13,26 +13,17 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK
+      # 1. TEMİZLİK (Her şeye sıfırdan başla)
       - name: 🧹 Ön Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js
 
-      - name: 🏗 Node.js Kurulumu
+      # 2. NODE.JS KURULUMU (DİKKAT: Expo 54 için Node 20 ŞART!)
+      - name: 🏗 Node.js Kurulumu (v20)
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
-      # 2. METRO CONFIG (ESM/CJS Hatalarını Önler)
-      - name: ⚙️ Metro Config Oluştur
-        run: |
-          cat > metro.config.js <<'JS'
-          const { getDefaultConfig } = require('expo/metro-config');
-          const config = getDefaultConfig(__dirname);
-          config.resolver.sourceExts.push('cjs');
-          module.exports = config;
-          JS
-
-      # 3. PACKAGE.JSON (Firebase v19 - Stabil Sürüm)
+      # 3. PACKAGE.JSON (Firebase v21.6.1 - Güncel ve Expo 54 ile uyumlu)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'JSON'
@@ -44,8 +35,8 @@ jobs:
               "expo": "~54.0.0",
               "react": "19.0.0",
               "react-native": "0.78.0",
-              "@react-native-firebase/app": "19.2.2",
-              "@react-native-firebase/remote-config": "19.2.2",
+              "@react-native-firebase/app": "21.6.1",
+              "@react-native-firebase/remote-config": "21.6.1",
               "expo-status-bar": "~2.1.0",
               "expo-constants": "~18.0.0",
               "expo-font": "~14.0.0",
@@ -67,9 +58,18 @@ jobs:
           }
           JSON
 
-      # 4. APP.JSON - KRİTİK DÜZELTME BURADA YAPILDI
-      # Hata Çözümü: "plugins" listesinden "remote-config" ÇIKARILDI.
-      # Sadece "@react-native-firebase/app" kalmalı.
+      # 4. METRO CONFIG (BU DOSYA NODE 20 + FIREBASE UYUMSUZLUĞUNU ÇÖZER)
+      - name: ⚙️ Metro Config Oluştur
+        run: |
+          cat > metro.config.js <<'JS'
+          const { getDefaultConfig } = require('expo/metro-config');
+          const config = getDefaultConfig(__dirname);
+          // Firebase'in modern paketlerini okuyabilmesi için gerekli:
+          config.resolver.sourceExts.push('cjs');
+          module.exports = config;
+          JS
+
+      # 5. APP.JSON (Temiz Plugin Listesi)
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'JSON'
@@ -120,4 +120,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Fixed Plugin Config" --non-interactive
+          eas update --branch preview --message "Stable Node20 Config" --non-interactive
