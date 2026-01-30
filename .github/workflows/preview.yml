@@ -1,10 +1,12 @@
-name: ANLIK PİYASA - SECRET BUILD
+name: ANLIK PİYASA - DEVELOPER MODE (SAFE)
 
 on:
+  push:
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
-  build-ios:
+  publish-preview:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,16 +22,17 @@ jobs:
         with:
           node-version: 20
 
-      # 2. GRAFİK MOTORU
-      - name: 🎨 ImageMagick Kur
-        run: sudo apt-get install imagemagick -y
-
-      # 3. GÖRSELLERİ HAZIRLA
-      - name: 🖼 İkon ve Splash Oluştur
+      # 2. GÖRSELLERİ HAZIRLA (İkon ve Splash'i burada kodla oluşturuyoruz)
+      # Build almadığımız için telefonunda eski ikon kalabilir ama kodda hazır olacak.
+      - name: 🎨 Görselleri Oluştur
         run: |
+          sudo apt-get install imagemagick -y
           mkdir -p assets
+          
+          # İkonu İndir
           curl -L -o assets/icon.png "https://i.ibb.co/99mj6zkx/71cf52be-22d6-4382-8a4e-bb42ea43796e.png"
           
+          # Gold Splash Ekranı Çiz
           convert -size 1242x2688 xc:"#000000" \
             -fill "#F59E0B" -font DejaVu-Sans-Bold -gravity center -pointsize 100 -annotate 0 "ANLIK PİYASA" \
             assets/splash.png
@@ -37,29 +40,7 @@ jobs:
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 4. CREDENTIALS.JSON (SİHİRLİ ADIM BU!)
-      # Secret'tan gelen Base64 kodlarını dosyaya döküp EAS'a tanıtıyoruz.
-      - name: 🔑 Sertifikaları Hazırla
-        env:
-          CERT_BASE64: ${{ secrets.EXPO_APPLE_CERTIFICATE_BASE64 }}
-          CERT_PASS: ${{ secrets.EXPO_APPLE_CERTIFICATE_PASSWORD }}
-          PROFILE_BASE64: ${{ secrets.EXPO_APPLE_PROVISIONING_PROFILE_BASE64 }}
-        run: |
-          cat > credentials.json <<EOF
-          {
-            "ios": {
-              "provisioningProfile": {
-                "base64": "$PROFILE_BASE64"
-              },
-              "distributionCertificate": {
-                "base64": "$CERT_BASE64",
-                "password": "$CERT_PASS"
-              }
-            }
-          }
-          EOF
-
-      # 5. PACKAGE.JSON
+      # 3. PACKAGE.JSON (Sadece Güvenli Paketler - AdMob Yok)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -74,10 +55,7 @@ jobs:
               "expo-status-bar": "~2.1.0",
               "fs-extra": "^11.2.0",
               "@expo/vector-icons": "~14.0.0",
-              "react-native-google-mobile-ads": "^14.2.0", 
-              "react-native-safe-area-context": "4.12.0",
-              "expo-splash-screen": "~0.27.0",
-              "expo-build-properties": "~0.12.0"
+              "react-native-safe-area-context": "4.12.0"
             },
             "devDependencies": {
               "@babel/core": "^7.25.0",
@@ -87,96 +65,17 @@ jobs:
           }
           EOF
 
-      # 6. EAS.JSON (Credentials Source: local)
-      # Burada EAS'a "Sertifikaları buluttan arama, ben sana dosya veriyorum" diyoruz.
-      - name: 📄 eas.json Oluştur
+      # 4. BABEL & METRO CONFIG
+      - name: ⚙️ Config Dosyaları
         run: |
-          cat > eas.json <<'EOF'
-          {
-            "cli": {
-              "version": ">= 10.0.0",
-              "appVersionSource": "remote"
-            },
-            "build": {
-              "preview": {
-                "credentialsSource": "local",
-                "distribution": "internal",
-                "ios": {
-                  "simulator": false,
-                  "image": "latest"
-                }
-              },
-              "production": {
-                "credentialsSource": "local",
-                "ios": {
-                  "resourceClass": "medium"
-                }
-              }
-            }
-          }
+          cat > babel.config.js <<'EOF'
+          module.exports = function(api) { api.cache(true); return { presets: ['babel-preset-expo'] }; };
+          EOF
+          cat > metro.config.js <<'EOF'
+          const { getDefaultConfig } = require('expo/metro-config'); const config = getDefaultConfig(__dirname); module.exports = config;
           EOF
 
-      # 7. APP.JSON
-      - name: 📄 app.json Oluştur
-        run: |
-          cat > app.json <<'EOF'
-          {
-            "expo": {
-              "name": "ANLIK PİYASA",
-              "slug": "eminxtream",
-              "version": "1.0.0",
-              "orientation": "portrait",
-              "icon": "./assets/icon.png",
-              "userInterfaceStyle": "automatic",
-              "splash": {
-                "image": "./assets/splash.png",
-                "resizeMode": "contain",
-                "backgroundColor": "#000000"
-              },
-              "ios": {
-                "bundleIdentifier": "com.piyasapro.app",
-                "supportsTablet": true,
-                "infoPlist": {
-                  "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true },
-                  "SKAdNetworkItems": [
-                    { "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork" }
-                  ]
-                }
-              },
-              "android": {
-                "package": "com.piyasapro.app",
-                "adaptiveIcon": {
-                  "foregroundImage": "./assets/adaptive-icon.png",
-                  "backgroundColor": "#000000"
-                }
-              },
-              "plugins": [
-                [
-                  "react-native-google-mobile-ads",
-                  {
-                    "androidAppId": "ca-app-pub-2289573527937577~7422350827",
-                    "iosAppId": "ca-app-pub-2289573527937577~7422350827"
-                  }
-                ],
-                [
-                  "expo-build-properties",
-                  {
-                    "ios": {
-                      "useFrameworks": "static"
-                    }
-                  }
-                ]
-              ],
-              "extra": {
-                "eas": {
-                  "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4"
-                }
-              }
-            }
-          }
-          EOF
-
-      # 8. APP.JS
+      # 5. APP.JS (GÜVENLİ GELİŞTİRME MODU)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
@@ -188,18 +87,11 @@ jobs:
           } from 'react-native';
           import { Ionicons } from '@expo/vector-icons';
           import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-          import { BannerAd, BannerAdSize, InterstitialAd, AdEventType } from 'react-native-google-mobile-ads';
-          import * as SplashScreen from 'expo-splash-screen';
 
-          SplashScreen.preventAutoHideAsync();
-
+          // --- GÜVENLİ MOD: ADMOB ID'LERİNİ SAKLIYORUZ ---
           const BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
           const INTERSTITIAL_ID = "ca-app-pub-2289573527937577/6951577531";
           const URL = "https://imdatgel.site/harem/piyasa_cache.json";
-
-          const interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_ID, {
-            requestNonPersonalizedAdsOnly: true,
-          });
 
           function MainApp() {
             const insets = useSafeAreaInsets();
@@ -207,10 +99,14 @@ jobs:
             const [prevData, setPrevData] = useState({});
             const [loading, setLoading] = useState(true);
             const [refreshing, setRefreshing] = useState(false);
-            const [interstitialLoaded, setInterstitialLoaded] = useState(false);
             const [isDarkMode, setIsDarkMode] = useState(true);
             const [currentTime, setCurrentTime] = useState("");
             
+            // Reklam Simülasyonu
+            const [showFakeInterstitial, setShowFakeInterstitial] = useState(false);
+            const [refreshCount, setRefreshCount] = useState(0);
+
+            // Hesap Makinesi
             const [calcVisible, setCalcVisible] = useState(false);
             const [selectedItem, setSelectedItem] = useState(null);
             const [amount, setAmount] = useState('');
@@ -227,14 +123,8 @@ jobs:
             };
 
             useEffect(() => {
-              const u1 = interstitial.addAdEventListener(AdEventType.LOADED, () => setInterstitialLoaded(true));
-              const u2 = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-                setInterstitialLoaded(false);
-                interstitial.load();
-              });
-              interstitial.load();
               const t = setInterval(() => setCurrentTime(new Date().toLocaleTimeString('tr-TR')), 1000);
-              return () => { u1(); u2(); clearInterval(t); };
+              return () => clearInterval(t);
             }, []);
 
             const loadData = async (isAuto = false) => {
@@ -246,14 +136,21 @@ jobs:
                   setData(c => {
                      const m = {}; c.forEach(i => m[i.k] = parseFloat(i.s)); setPrevData(m); return json;
                   });
-                  if (!isAuto) await SplashScreen.hideAsync();
-                  if (isAuto && interstitialLoaded && Math.random() < 0.25) interstitial.show();
+
+                  // REKLAM SİMÜLASYONU (Her 4 yenilemede bir)
+                  if(isAuto) {
+                    setRefreshCount(prev => {
+                      const newVal = prev + 1;
+                      if(newVal % 4 === 0) setShowFakeInterstitial(true);
+                      return newVal;
+                    });
+                  }
                 }
               } catch (e) { console.error(e); } 
-              finally { setLoading(false); setRefreshing(false); if (!isAuto) await SplashScreen.hideAsync(); }
+              finally { setLoading(false); setRefreshing(false); }
             };
 
-            useEffect(() => { loadData(); }, []);
+            useEffect(() => { loadData(); const i = setInterval(() => loadData(true), 30000); return () => clearInterval(i); }, []);
             const onRefresh = () => { setRefreshing(true); loadData(true); };
 
             const openCalculator = (item) => {
@@ -306,6 +203,8 @@ jobs:
             return (
               <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
                 <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+                
+                {/* HEADER */}
                 <View style={[styles.header, { borderBottomColor: theme.border }]}>
                    <Text style={[styles.title, { color: theme.text }]}>ANLIK <Text style={{color: theme.gold}}>PİYASA</Text></Text>
                    <View style={{flexDirection:'row', alignItems:'center'}}>
@@ -315,6 +214,8 @@ jobs:
                       </TouchableOpacity>
                    </View>
                 </View>
+
+                {/* LISTE */}
                 {loading ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:20}} /> : (
                   <FlatList
                     data={data} keyExtractor={item => item.k} renderItem={renderItem}
@@ -322,9 +223,34 @@ jobs:
                     contentContainerStyle={{paddingBottom: 60}}
                   />
                 )}
-                <View style={{alignItems:'center', borderTopWidth:1, borderColor:theme.border, paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0 }}>
-                  <BannerAd unitId={BANNER_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
+
+                {/* BANNER SİMÜLASYONU */}
+                <View style={{alignItems:'center', borderTopWidth:1, borderColor:theme.border, padding: 10, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 10 : 10, backgroundColor: isDarkMode ? '#000' : '#eee' }}>
+                  <Text style={{color: theme.subText, fontSize:10, marginBottom:4}}>REKLAM ALANI (ID: {BANNER_ID.slice(0,10)}...)</Text>
+                  <View style={{width: 320, height: 50, backgroundColor: theme.card, borderWidth:1, borderColor: theme.border, justifyContent:'center', alignItems:'center', borderRadius:8}}>
+                     <Text style={{color: theme.gold, fontWeight:'bold'}}>BANNER REKLAM YERİ</Text>
+                  </View>
                 </View>
+
+                {/* GEÇİŞ REKLAMI SİMÜLASYONU */}
+                <Modal visible={showFakeInterstitial} transparent={true} animationType="fade">
+                  <View style={styles.modalOverlay}>
+                    <View style={[styles.interstitialBox, { backgroundColor: theme.card }]}>
+                      <TouchableOpacity onPress={() => setShowFakeInterstitial(false)} style={styles.closeBtn}>
+                         <Ionicons name="close" size={24} color="#FFF" />
+                      </TouchableOpacity>
+                      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+                        <Ionicons name="star" size={50} color={theme.gold} style={{marginBottom:10}} />
+                        <Text style={{color: theme.text, fontSize:20, fontWeight:'bold', marginBottom:10}}>GEÇİŞ REKLAMI</Text>
+                        <Text style={{color: theme.subText, textAlign:'center'}}>
+                           Apple hesabı onaylanınca burada gerçek reklam çıkacak.
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </Modal>
+
+                {/* HESAP MAKİNESİ */}
                 <Modal visible={calcVisible} transparent={true} animationType="slide" onRequestClose={() => setCalcVisible(false)}>
                   <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
                     <TouchableOpacity style={{flex:1, justifyContent:'center', alignItems:'center', width:'100%'}} activeOpacity={1} onPress={Keyboard.dismiss}>
@@ -352,6 +278,7 @@ jobs:
             );
           }
           export default function App() { return <SafeAreaProvider><MainApp /></SafeAreaProvider>; }
+          
           const styles = StyleSheet.create({
             container: { flex: 1 }, header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1 },
             title: { fontSize: 22, fontWeight: '800' }, clock: { fontSize: 13, fontWeight: 'bold', padding: 6, borderRadius: 6, overflow: 'hidden' },
@@ -359,18 +286,48 @@ jobs:
             iconBox: { width: 42, height: 42, borderRadius: 12, justifyContent:'center', alignItems:'center', marginRight:12 },
             modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center' },
             calcContent: { width: '90%', padding: 20, borderRadius: 24, borderWidth: 1, elevation: 10 },
-            input: { height: 50, borderRadius: 12, paddingHorizontal: 15, borderWidth: 1, fontSize: 18 }
+            input: { height: 50, borderRadius: 12, paddingHorizontal: 15, borderWidth: 1, fontSize: 18 },
+            interstitialBox: { width: '85%', height: '50%', borderRadius: 20, padding: 20 },
+            closeBtn: { alignSelf: 'flex-end', backgroundColor: '#EF4444', borderRadius: 20, padding: 4 }
           });
           EOF
 
-      # 9. CONFIG FILES
-      - name: ⚙️ Config Dosyaları
+      # 6. APP.JSON
+      - name: 📄 app.json Oluştur
         run: |
-          cat > babel.config.js <<'EOF'
-          module.exports = function(api) { api.cache(true); return { presets: ['babel-preset-expo'] }; };
-          EOF
-          cat > metro.config.js <<'EOF'
-          const { getDefaultConfig } = require('expo/metro-config'); const config = getDefaultConfig(__dirname); module.exports = config;
+          cat > app.json <<'EOF'
+          {
+            "expo": {
+              "name": "ANLIK PİYASA",
+              "slug": "eminxtream",
+              "version": "1.0.0",
+              "orientation": "portrait",
+              "userInterfaceStyle": "automatic",
+              "icon": "./assets/icon.png",
+              "splash": {
+                "image": "./assets/splash.png",
+                "resizeMode": "contain",
+                "backgroundColor": "#000000"
+              },
+              "ios": {
+                "bundleIdentifier": "com.piyasapro.app",
+                "supportsTablet": true,
+                "infoPlist": {
+                  "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+                }
+              },
+              "android": {
+                "package": "com.piyasapro.app",
+                "adaptiveIcon": {
+                  "foregroundImage": "./assets/adaptive-icon.png",
+                  "backgroundColor": "#000000"
+                }
+              },
+              "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
+              "runtimeVersion": { "policy": "appVersion" },
+              "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
+            }
+          }
           EOF
 
       - name: 📦 Paket Kurulumu
@@ -378,9 +335,8 @@ jobs:
           npm install -g eas-cli
           npm install --legacy-peer-deps
 
-      # --- BUILD START ---
-      - name: 🏗 IPA Oluştur (Build)
+      - name: 🚀 Güncelle (Update)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas build --platform ios --profile preview --non-interactive
+          eas update --branch preview --message "Developer Mode: Safe & Ready" --non-interactive
