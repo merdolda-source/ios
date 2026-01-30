@@ -1,4 +1,4 @@
-name: EminXtream Final Stable
+name: EminXtream Final Fix
 
 on:
   push:
@@ -13,17 +13,17 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK (Her şeye sıfırdan başla)
+      # 1. TEMİZLİK
       - name: 🧹 Ön Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js
 
-      # 2. NODE.JS KURULUMU (DİKKAT: Expo 54 için Node 20 ŞART!)
+      # 2. NODE.JS KURULUMU (SDK 54 için Node 20 Şart)
       - name: 🏗 Node.js Kurulumu (v20)
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 3. PACKAGE.JSON (Firebase v21.6.1 - Güncel ve Expo 54 ile uyumlu)
+      # 3. PACKAGE.JSON (fs-extra EKLENDİ - KRİTİK DÜZELTME)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'JSON'
@@ -35,6 +35,7 @@ jobs:
               "expo": "~54.0.0",
               "react": "19.0.0",
               "react-native": "0.78.0",
+              "fs-extra": "^11.2.0", 
               "@react-native-firebase/app": "21.6.1",
               "@react-native-firebase/remote-config": "21.6.1",
               "expo-status-bar": "~2.1.0",
@@ -58,18 +59,17 @@ jobs:
           }
           JSON
 
-      # 4. METRO CONFIG (BU DOSYA NODE 20 + FIREBASE UYUMSUZLUĞUNU ÇÖZER)
+      # 4. METRO CONFIG (Firebase Hatalarını Önler)
       - name: ⚙️ Metro Config Oluştur
         run: |
           cat > metro.config.js <<'JS'
           const { getDefaultConfig } = require('expo/metro-config');
           const config = getDefaultConfig(__dirname);
-          // Firebase'in modern paketlerini okuyabilmesi için gerekli:
           config.resolver.sourceExts.push('cjs');
           module.exports = config;
           JS
 
-      # 5. APP.JSON (Temiz Plugin Listesi)
+      # 5. APP.JSON (Plugin Hatası Giderilmiş)
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'JSON'
@@ -120,4 +120,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Stable Node20 Config" --non-interactive
+          eas update --branch preview --message "Added fs-extra dependency" --non-interactive
