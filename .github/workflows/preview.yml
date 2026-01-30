@@ -55,16 +55,17 @@ jobs:
           }
           JSON
 
-      - name: ⚙️ Metro Config Oluştur (Firebase Resolve Fix)
+      - name: ⚙️ Metro Config Oluştur (Directory Import Fix)
         run: |
           cat > metro.config.js <<'JS'
           const { getDefaultConfig } = require('expo/metro-config');
           const config = getDefaultConfig(__dirname);
+          // Firebase'in cjs/mjs karmaşasını çözmek için ek uzantıları destekle
           config.resolver.sourceExts.push('cjs');
           module.exports = config;
           JS
 
-      - name: 📄 app.json Oluştur
+      - name: 📄 app.json Oluştur (Piyasa Pro iOS)
         run: |
           cat > app.json <<'JSON'
           {
