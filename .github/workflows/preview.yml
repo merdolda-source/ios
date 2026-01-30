@@ -13,7 +13,6 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK
       - name: 🧹 Derin Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js App.js GoogleService-Info.plist credentials.json
 
@@ -22,17 +21,13 @@ jobs:
         with:
           node-version: 20
 
-      # 2. GÖRSELLERİ HAZIRLA (İkon ve Splash'i burada kodla oluşturuyoruz)
-      # Build almadığımız için telefonunda eski ikon kalabilir ama kodda hazır olacak.
       - name: 🎨 Görselleri Oluştur
         run: |
           sudo apt-get install imagemagick -y
           mkdir -p assets
           
-          # İkonu İndir
           curl -L -o assets/icon.png "https://i.ibb.co/99mj6zkx/71cf52be-22d6-4382-8a4e-bb42ea43796e.png"
           
-          # Gold Splash Ekranı Çiz
           convert -size 1242x2688 xc:"#000000" \
             -fill "#F59E0B" -font DejaVu-Sans-Bold -gravity center -pointsize 100 -annotate 0 "ANLIK PİYASA" \
             assets/splash.png
@@ -40,7 +35,6 @@ jobs:
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 3. PACKAGE.JSON (Sadece Güvenli Paketler - AdMob Yok)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -49,23 +43,21 @@ jobs:
             "version": "1.0.0",
             "main": "node_modules/expo/AppEntry.js",
             "dependencies": {
-              "expo": "~54.0.0",
-              "react": "19.0.0",
-              "react-native": "0.78.0",
-              "expo-status-bar": "~2.1.0",
-              "fs-extra": "^11.2.0",
-              "@expo/vector-icons": "~14.0.0",
+              "expo": "~52.0.0",
+              "react": "18.3.1",
+              "react-native": "0.76.3",
+              "expo-status-bar": "~2.0.0",
+              "@expo/vector-icons": "^14.0.0",
               "react-native-safe-area-context": "4.12.0"
             },
             "devDependencies": {
               "@babel/core": "^7.25.0",
-              "babel-preset-expo": "~13.0.0"
+              "babel-preset-expo": "~12.0.0"
             },
             "private": true
           }
           EOF
 
-      # 4. BABEL & METRO CONFIG
       - name: ⚙️ Config Dosyaları
         run: |
           cat > babel.config.js <<'EOF'
@@ -75,7 +67,6 @@ jobs:
           const { getDefaultConfig } = require('expo/metro-config'); const config = getDefaultConfig(__dirname); module.exports = config;
           EOF
 
-      # 5. APP.JS (GÜVENLİ GELİŞTİRME MODU)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
@@ -83,12 +74,11 @@ jobs:
           import { 
             Text, View, FlatList, ActivityIndicator, StatusBar, TouchableOpacity, 
             StyleSheet, Modal, Platform, TextInput, Keyboard, RefreshControl, 
-            KeyboardAvoidingView 
+            KeyboardAvoidingView, Dimensions
           } from 'react-native';
           import { Ionicons } from '@expo/vector-icons';
           import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-          // --- GÜVENLİ MOD: ADMOB ID'LERİNİ SAKLIYORUZ ---
           const BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
           const INTERSTITIAL_ID = "ca-app-pub-2289573527937577/6951577531";
           const URL = "https://imdatgel.site/harem/piyasa_cache.json";
@@ -101,16 +91,13 @@ jobs:
             const [refreshing, setRefreshing] = useState(false);
             const [isDarkMode, setIsDarkMode] = useState(true);
             const [currentTime, setCurrentTime] = useState("");
-            
-            // Reklam Simülasyonu
             const [showFakeInterstitial, setShowFakeInterstitial] = useState(false);
             const [refreshCount, setRefreshCount] = useState(0);
-
-            // Hesap Makinesi
             const [calcVisible, setCalcVisible] = useState(false);
             const [selectedItem, setSelectedItem] = useState(null);
             const [amount, setAmount] = useState('');
             const [calcResult, setCalcResult] = useState(null);
+            const [error, setError] = useState(null);
 
             const theme = isDarkMode ? {
               bg: '#0F172A', card: '#1E293B', text: '#F8FAFC', subText: '#94A3B8',
@@ -129,15 +116,20 @@ jobs:
 
             const loadData = async (isAuto = false) => {
               if (!isAuto) setLoading(true);
+              setError(null);
               try {
-                const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
+                const resp = await fetch(URL, { 
+                  headers: { 'Cache-Control': 'no-cache' },
+                  cache: 'no-store'
+                });
+                if (!resp.ok) throw new Error('Sunucu hatası: ' + resp.status);
                 const json = await resp.json();
-                if (Array.isArray(json)) {
+                if (Array.isArray(json) && json.length > 0) {
                   setData(c => {
-                     const m = {}; c.forEach(i => m[i.k] = parseFloat(i.s)); setPrevData(m); return json;
+                     const m = {}; c.forEach(i => { if(i && i.k && i.s) m[i.k] = parseFloat(i.s); }); 
+                     setPrevData(m); 
+                     return json;
                   });
-
-                  // REKLAM SİMÜLASYONU (Her 4 yenilemede bir)
                   if(isAuto) {
                     setRefreshCount(prev => {
                       const newVal = prev + 1;
@@ -145,55 +137,83 @@ jobs:
                       return newVal;
                     });
                   }
+                } else {
+                  throw new Error('Veri boş veya hatalı');
                 }
-              } catch (e) { console.error(e); } 
-              finally { setLoading(false); setRefreshing(false); }
+              } catch (e) { 
+                console.error('Veri yükleme hatası:', e); 
+                setError(e.message);
+              } finally { 
+                setLoading(false); 
+                setRefreshing(false); 
+              }
             };
 
-            useEffect(() => { loadData(); const i = setInterval(() => loadData(true), 30000); return () => clearInterval(i); }, []);
+            useEffect(() => { 
+              loadData(); 
+              const i = setInterval(() => loadData(true), 30000); 
+              return () => clearInterval(i); 
+            }, []);
+            
             const onRefresh = () => { setRefreshing(true); loadData(true); };
 
             const openCalculator = (item) => {
-              setSelectedItem(item); setAmount(''); setCalcResult(null); setCalcVisible(true);
+              if(!item) return;
+              setSelectedItem(item); 
+              setAmount(''); 
+              setCalcResult(null); 
+              setCalcVisible(true);
             };
 
             const handleCalculate = (text) => {
               setAmount(text);
-              if (selectedItem && text) {
+              if (selectedItem && text && selectedItem.s) {
                 const val = parseFloat(text.replace(',', '.'));
                 const p = parseFloat(selectedItem.s);
-                if (!isNaN(val)) setCalcResult((val * p).toFixed(2));
+                if (!isNaN(val) && !isNaN(p)) setCalcResult((val * p).toFixed(2));
+                else setCalcResult(null);
+              } else {
+                setCalcResult(null);
               }
             };
 
             const getTrendIcon = (symbol, s) => {
-               const cur = parseFloat(s); const old = prevData[symbol];
-               if(!old) return {n:'remove', c:theme.subText};
+               if(!symbol || !s) return {n:'remove', c:theme.subText};
+               const cur = parseFloat(s); 
+               const old = prevData[symbol];
+               if(!old || isNaN(cur)) return {n:'remove', c:theme.subText};
                if(cur > old) return {n:'caret-up', c:theme.green};
                if(cur < old) return {n:'caret-down', c:theme.red};
                return {n:'remove', c:theme.subText};
             };
 
             const renderItem = ({ item }) => {
+              if(!item || !item.k) return null;
               const trend = getTrendIcon(item.k, item.s);
+              const salePrice = item.s ? parseFloat(item.s).toFixed(2) : '0.00';
+              const buyPrice = item.a ? parseFloat(item.a).toFixed(2) : '0.00';
+              const displayName = item.k.replace(/_/g, ' ');
+              const firstChar = displayName.charAt(0).toUpperCase();
+              const timeStr = item.t ? item.t.split(' ')[1] || '' : '';
+              
               return (
                 <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
                   <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                    <View style={{flexDirection:'row', alignItems:'center'}}>
+                    <View style={styles.cardLeft}>
                        <View style={[styles.iconBox, { backgroundColor: isDarkMode ? 'rgba(245,158,11,0.2)' : 'rgba(217,119,6,0.1)' }]}>
-                          <Text style={{fontSize:18, fontWeight:'bold', color: theme.gold}}>{item.k.replace('_',' ').charAt(0)}</Text>
+                          <Text style={[styles.iconText, {color: theme.gold}]}>{firstChar}</Text>
                        </View>
                        <View>
-                          <Text style={{color: theme.text, fontWeight:'bold', fontSize:16}}>{item.k.replace('_', ' ')}</Text>
-                          <Text style={{color: theme.subText, fontSize:11}}>{item.t?.split(' ')[1]}</Text>
+                          <Text style={[styles.itemName, {color: theme.text}]}>{displayName}</Text>
+                          <Text style={[styles.itemTime, {color: theme.subText}]}>{timeStr}</Text>
                        </View>
                     </View>
-                    <View style={{alignItems:'flex-end'}}>
-                       <View style={{flexDirection:'row', alignItems:'center'}}>
-                          <Text style={{color: theme.text, fontSize:18, fontWeight:'bold', marginRight:5}}>{parseFloat(item.s).toFixed(2)}</Text>
+                    <View style={styles.cardRight}>
+                       <View style={styles.priceRow}>
+                          <Text style={[styles.priceText, {color: theme.text}]}>{salePrice}</Text>
                           <Ionicons name={trend.n} size={20} color={trend.c} />
                        </View>
-                       <Text style={{color: theme.subText, fontSize:12}}>Alış: {parseFloat(item.a).toFixed(2)}</Text>
+                       <Text style={[styles.buyText, {color: theme.subText}]}>Alış: {buyPrice}</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -204,45 +224,60 @@ jobs:
               <View style={[styles.container, { backgroundColor: theme.bg, paddingTop: insets.top }]}>
                 <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
                 
-                {/* HEADER */}
                 <View style={[styles.header, { borderBottomColor: theme.border }]}>
                    <Text style={[styles.title, { color: theme.text }]}>ANLIK <Text style={{color: theme.gold}}>PİYASA</Text></Text>
-                   <View style={{flexDirection:'row', alignItems:'center'}}>
+                   <View style={styles.headerRight}>
                       <Text style={[styles.clock, { color: theme.gold, backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>{currentTime}</Text>
-                      <TouchableOpacity onPress={() => setIsDarkMode(!isDarkMode)} style={{marginLeft:10}}>
+                      <TouchableOpacity onPress={() => setIsDarkMode(!isDarkMode)} style={styles.themeBtn}>
                         <Ionicons name={isDarkMode ? "sunny" : "moon"} size={24} color={theme.text} />
                       </TouchableOpacity>
                    </View>
                 </View>
 
-                {/* LISTE */}
-                {loading ? <ActivityIndicator size="large" color={theme.gold} style={{marginTop:20}} /> : (
+                {error && (
+                  <View style={[styles.errorBox, {backgroundColor: theme.red}]}>
+                    <Ionicons name="warning" size={20} color="#FFF" />
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
+
+                {loading ? (
+                  <View style={styles.loadingBox}>
+                    <ActivityIndicator size="large" color={theme.gold} />
+                    <Text style={[styles.loadingText, {color: theme.subText}]}>Veriler yükleniyor...</Text>
+                  </View>
+                ) : (
                   <FlatList
-                    data={data} keyExtractor={item => item.k} renderItem={renderItem}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
-                    contentContainerStyle={{paddingBottom: 60}}
+                    data={data} 
+                    keyExtractor={(item, index) => item?.k || index.toString()} 
+                    renderItem={renderItem}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} colors={[theme.gold]} />}
+                    contentContainerStyle={{paddingBottom: 80}}
+                    ListEmptyComponent={
+                      <View style={styles.emptyBox}>
+                        <Text style={{color: theme.subText}}>Veri bulunamadı</Text>
+                      </View>
+                    }
                   />
                 )}
 
-                {/* BANNER SİMÜLASYONU */}
-                <View style={{alignItems:'center', borderTopWidth:1, borderColor:theme.border, padding: 10, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 10 : 10, backgroundColor: isDarkMode ? '#000' : '#eee' }}>
-                  <Text style={{color: theme.subText, fontSize:10, marginBottom:4}}>REKLAM ALANI (ID: {BANNER_ID.slice(0,10)}...)</Text>
-                  <View style={{width: 320, height: 50, backgroundColor: theme.card, borderWidth:1, borderColor: theme.border, justifyContent:'center', alignItems:'center', borderRadius:8}}>
-                     <Text style={{color: theme.gold, fontWeight:'bold'}}>BANNER REKLAM YERİ</Text>
+                <View style={[styles.bannerContainer, {borderTopColor: theme.border, backgroundColor: isDarkMode ? '#000' : '#eee', paddingBottom: Platform.OS === 'ios' ? insets.bottom + 10 : 10}]}>
+                  <Text style={[styles.bannerLabel, {color: theme.subText}]}>REKLAM ALANI</Text>
+                  <View style={[styles.bannerBox, {backgroundColor: theme.card, borderColor: theme.border}]}>
+                     <Text style={[styles.bannerText, {color: theme.gold}]}>BANNER REKLAM YERİ</Text>
                   </View>
                 </View>
 
-                {/* GEÇİŞ REKLAMI SİMÜLASYONU */}
                 <Modal visible={showFakeInterstitial} transparent={true} animationType="fade">
                   <View style={styles.modalOverlay}>
                     <View style={[styles.interstitialBox, { backgroundColor: theme.card }]}>
                       <TouchableOpacity onPress={() => setShowFakeInterstitial(false)} style={styles.closeBtn}>
                          <Ionicons name="close" size={24} color="#FFF" />
                       </TouchableOpacity>
-                      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+                      <View style={styles.interstitialContent}>
                         <Ionicons name="star" size={50} color={theme.gold} style={{marginBottom:10}} />
-                        <Text style={{color: theme.text, fontSize:20, fontWeight:'bold', marginBottom:10}}>GEÇİŞ REKLAMI</Text>
-                        <Text style={{color: theme.subText, textAlign:'center'}}>
+                        <Text style={[styles.interstitialTitle, {color: theme.text}]}>GEÇİŞ REKLAMI</Text>
+                        <Text style={[styles.interstitialDesc, {color: theme.subText}]}>
                            Apple hesabı onaylanınca burada gerçek reklam çıkacak.
                         </Text>
                       </View>
@@ -250,24 +285,30 @@ jobs:
                   </View>
                 </Modal>
 
-                {/* HESAP MAKİNESİ */}
                 <Modal visible={calcVisible} transparent={true} animationType="slide" onRequestClose={() => setCalcVisible(false)}>
                   <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
-                    <TouchableOpacity style={{flex:1, justifyContent:'center', alignItems:'center', width:'100%'}} activeOpacity={1} onPress={Keyboard.dismiss}>
+                    <TouchableOpacity style={styles.calcOverlay} activeOpacity={1} onPress={Keyboard.dismiss}>
                        <View style={[styles.calcContent, { backgroundColor: theme.modal, borderColor: theme.gold }]}>
-                          <View style={{flexDirection:'row', justifyContent:'space-between', marginBottom:20}}>
-                             <Text style={{color:theme.text, fontSize:18, fontWeight:'bold'}}>Hesapla</Text>
-                             <TouchableOpacity onPress={() => setCalcVisible(false)}><Ionicons name="close-circle" size={30} color={theme.red} /></TouchableOpacity>
+                          <View style={styles.calcHeader}>
+                             <Text style={[styles.calcTitle, {color: theme.text}]}>Hesapla</Text>
+                             <TouchableOpacity onPress={() => setCalcVisible(false)}>
+                               <Ionicons name="close-circle" size={30} color={theme.red} />
+                             </TouchableOpacity>
                           </View>
-                          <Text style={{color: theme.gold, fontSize:22, fontWeight:'bold', marginBottom:15}}>{selectedItem?.s} ₺</Text>
+                          <Text style={[styles.calcPrice, {color: theme.gold}]}>
+                            {selectedItem?.k?.replace(/_/g, ' ')}: {selectedItem?.s || '0'} ₺
+                          </Text>
                           <TextInput 
                              style={[styles.input, { backgroundColor: theme.input, color: theme.text, borderColor: theme.border }]}
-                             placeholder="Miktar" placeholderTextColor={theme.subText} keyboardType="numeric"
-                             value={amount} onChangeText={handleCalculate}
+                             placeholder="Miktar girin (gram/adet)" 
+                             placeholderTextColor={theme.subText} 
+                             keyboardType="decimal-pad"
+                             value={amount} 
+                             onChangeText={handleCalculate}
                           />
                           {calcResult && (
-                             <View style={{marginTop:20, padding:15, backgroundColor: theme.green, borderRadius:12, alignItems:'center'}}>
-                                <Text style={{color:'#FFF', fontSize:26, fontWeight:'900'}}>{calcResult} ₺</Text>
+                             <View style={[styles.resultBox, {backgroundColor: theme.green}]}>
+                                <Text style={styles.resultText}>{calcResult} ₺</Text>
                              </View>
                           )}
                        </View>
@@ -277,22 +318,58 @@ jobs:
               </View>
             );
           }
-          export default function App() { return <SafeAreaProvider><MainApp /></SafeAreaProvider>; }
+          
+          export default function App() { 
+            return (
+              <SafeAreaProvider>
+                <MainApp />
+              </SafeAreaProvider>
+            ); 
+          }
           
           const styles = StyleSheet.create({
-            container: { flex: 1 }, header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1 },
-            title: { fontSize: 22, fontWeight: '800' }, clock: { fontSize: 13, fontWeight: 'bold', padding: 6, borderRadius: 6, overflow: 'hidden' },
+            container: { flex: 1 },
+            header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1 },
+            headerRight: { flexDirection: 'row', alignItems: 'center' },
+            title: { fontSize: 22, fontWeight: '800' },
+            clock: { fontSize: 13, fontWeight: 'bold', padding: 6, borderRadius: 6, overflow: 'hidden' },
+            themeBtn: { marginLeft: 10 },
             card: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, marginHorizontal: 16, marginBottom: 10, borderRadius: 16, borderWidth: 1 },
-            iconBox: { width: 42, height: 42, borderRadius: 12, justifyContent:'center', alignItems:'center', marginRight:12 },
-            modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center' },
-            calcContent: { width: '90%', padding: 20, borderRadius: 24, borderWidth: 1, elevation: 10 },
+            cardLeft: { flexDirection: 'row', alignItems: 'center' },
+            cardRight: { alignItems: 'flex-end' },
+            iconBox: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+            iconText: { fontSize: 18, fontWeight: 'bold' },
+            itemName: { fontWeight: 'bold', fontSize: 16 },
+            itemTime: { fontSize: 11 },
+            priceRow: { flexDirection: 'row', alignItems: 'center' },
+            priceText: { fontSize: 18, fontWeight: 'bold', marginRight: 5 },
+            buyText: { fontSize: 12 },
+            errorBox: { flexDirection: 'row', alignItems: 'center', padding: 10, margin: 10, borderRadius: 8 },
+            errorText: { color: '#FFF', marginLeft: 8, flex: 1 },
+            loadingBox: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+            loadingText: { marginTop: 10 },
+            emptyBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 50 },
+            bannerContainer: { alignItems: 'center', borderTopWidth: 1, padding: 10 },
+            bannerLabel: { fontSize: 10, marginBottom: 4 },
+            bannerBox: { width: 320, height: 50, borderWidth: 1, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
+            bannerText: { fontWeight: 'bold' },
+            modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+            calcOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' },
+            calcContent: { width: '90%', padding: 20, borderRadius: 24, borderWidth: 1 },
+            calcHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+            calcTitle: { fontSize: 18, fontWeight: 'bold' },
+            calcPrice: { fontSize: 22, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
             input: { height: 50, borderRadius: 12, paddingHorizontal: 15, borderWidth: 1, fontSize: 18 },
+            resultBox: { marginTop: 20, padding: 15, borderRadius: 12, alignItems: 'center' },
+            resultText: { color: '#FFF', fontSize: 26, fontWeight: '900' },
             interstitialBox: { width: '85%', height: '50%', borderRadius: 20, padding: 20 },
+            interstitialContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+            interstitialTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
+            interstitialDesc: { textAlign: 'center' },
             closeBtn: { alignSelf: 'flex-end', backgroundColor: '#EF4444', borderRadius: 20, padding: 4 }
           });
           EOF
 
-      # 6. APP.JSON
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
@@ -300,6 +377,7 @@ jobs:
             "expo": {
               "name": "ANLIK PİYASA",
               "slug": "eminxtream",
+              "owner": "eminxtream",
               "version": "1.0.0",
               "orientation": "portrait",
               "userInterfaceStyle": "automatic",
@@ -323,9 +401,15 @@ jobs:
                   "backgroundColor": "#000000"
                 }
               },
-              "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
-              "runtimeVersion": { "policy": "appVersion" },
-              "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
+              "updates": { 
+                "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4"
+              },
+              "runtimeVersion": "1.0.0",
+              "extra": { 
+                "eas": { 
+                  "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" 
+                } 
+              }
             }
           }
           EOF
@@ -339,4 +423,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "Developer Mode: Safe & Ready" --non-interactive
+          eas update --branch preview --message "SDK 52 Stable iOS Fix" --non-interactive
