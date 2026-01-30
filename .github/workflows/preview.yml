@@ -1,4 +1,4 @@
-name: ANLIK PİYASA - ULTRA PRO (NEW API)
+name: ANLIK PİYASA - PRO UPDATE (NO ADMOB ERROR)
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish-ultra:
+  publish-pro-fix:
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +31,7 @@ jobs:
           # İkon
           curl -L -o assets/icon.png "https://i.ibb.co/99mj6zkx/71cf52be-22d6-4382-8a4e-bb42ea43796e.png"
           
-          # Splash (Native)
+          # Splash
           convert -size 1242x2688 xc:"#000000" \
             -fill "#F59E0B" -font DejaVu-Sans-Bold -gravity center -pointsize 100 -annotate 0 "ANLIK PİYASA" \
             assets/splash.png
@@ -39,7 +39,7 @@ jobs:
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 3. PACKAGE.JSON
+      # 3. PACKAGE.JSON (AdMob Kütüphanesini Kaldırdım - Hata Sebebi Buydu)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -81,7 +81,7 @@ jobs:
           const { getDefaultConfig } = require('expo/metro-config'); const config = getDefaultConfig(__dirname); module.exports = config;
           EOF
 
-      # 5. APP.JS (YENİ API + KATEGORİ + GARANTİ OKLAR)
+      # 5. APP.JS (YENİ API + KATEGORİLER + SİMÜLASYON REKLAM)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
@@ -94,49 +94,27 @@ jobs:
           import { Ionicons } from '@expo/vector-icons';
           import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-          // --- SABİTLER ---
-          const BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
-          // Yeni API Adresi
+          // --- AYARLAR ---
+          // Yeni Hızlı API
           const URL = "https://creatorapp24.com/pre.php"; 
           const SCREEN_WIDTH = Dimensions.get('window').width;
           const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
 
-          // --- DİL PAKETİ (APP ADI HARİÇ HER ŞEY DEĞİŞİR) ---
+          // --- DİL PAKETİ ---
           const LANG = {
             tr: {
-              // Uygulama adı sabit kalacak, buraya eklemiyoruz.
-              tab_currency: "DÖVİZ",
-              tab_gold: "ALTIN",
-              buy: "Alış",
-              sell: "Satış",
-              calcTitle: "Döviz Hesaplayıcı",
-              amount: "Miktar Giriniz",
-              result: "SONUÇ",
-              settings: "Ayarlar",
-              theme: "Tema",
-              language: "Dil",
-              auto: "Otomatik",
-              dark: "Karanlık",
-              light: "Aydınlık",
-              adSpace: "REKLAM ALANI",
-              lastUpdate: "Son Güncelleme"
+              tab_currency: "DÖVİZ", tab_gold: "ALTIN", buy: "Alış", sell: "Satış",
+              calcTitle: "Döviz Hesaplayıcı", amount: "Miktar Giriniz", result: "SONUÇ",
+              settings: "Ayarlar", theme: "Tema", language: "Dil", auto: "Otomatik",
+              dark: "Karanlık", light: "Aydınlık", adSpace: "REKLAM ALANI",
+              bannerPlace: "REKLAM YERİ (Onay Bekleniyor)"
             },
             en: {
-              tab_currency: "CURRENCY",
-              tab_gold: "GOLD",
-              buy: "Buy",
-              sell: "Sell",
-              calcTitle: "Calculator",
-              amount: "Enter Amount",
-              result: "RESULT",
-              settings: "Settings",
-              theme: "Theme",
-              language: "Language",
-              auto: "Auto",
-              dark: "Dark",
-              light: "Light",
-              adSpace: "AD SPACE",
-              lastUpdate: "Last Update"
+              tab_currency: "CURRENCY", tab_gold: "GOLD", buy: "Buy", sell: "Sell",
+              calcTitle: "Calculator", amount: "Enter Amount", result: "RESULT",
+              settings: "Settings", theme: "Theme", language: "Language", auto: "Auto",
+              dark: "Dark", light: "Light", adSpace: "AD SPACE",
+              bannerPlace: "AD PLACE (Waiting Approval)"
             }
           };
 
@@ -145,19 +123,17 @@ jobs:
             const colorScheme = Appearance.getColorScheme();
             
             // Veri State'leri
-            const [allData, setAllData] = useState([]); // Ham veri
-            const [currencies, setCurrencies] = useState([]); // Dövizler
-            const [golds, setGolds] = useState([]); // Altınlar
+            const [currencies, setCurrencies] = useState([]);
+            const [golds, setGolds] = useState([]);
             const [loading, setLoading] = useState(true);
             const [refreshing, setRefreshing] = useState(false);
-            const [activeTab, setActiveTab] = useState('currency'); // 'currency' veya 'gold'
+            const [activeTab, setActiveTab] = useState('currency'); // 'currency' | 'gold'
             
             // Ayarlar
             const [themeMode, setThemeMode] = useState('auto');
             const [language, setLanguage] = useState('tr');
             const [menuOpen, setMenuOpen] = useState(false);
             
-            // Animasyon
             const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
             const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -167,25 +143,19 @@ jobs:
             const [amount, setAmount] = useState('');
             const [calcResult, setCalcResult] = useState(null);
 
-            // Tema ve Dil Seçimi
             const isDarkMode = themeMode === 'auto' ? colorScheme === 'dark' : themeMode === 'dark';
             const T = LANG[language];
 
             const theme = isDarkMode ? {
               bg: '#000000', surface: '#1C1C1E', card: '#1C1C1E',
-              text: '#FFFFFF', subText: '#8E8E93',
-              gold: '#FFD60A', green: '#30D158', red: '#FF453A',
-              border: '#38383A', modal: '#2C2C2E', input: '#2C2C2E',
-              tint: 'rgba(255,255,255,0.1)', tabActive: '#3A3A3C'
+              text: '#FFFFFF', subText: '#8E8E93', gold: '#FFD60A', green: '#30D158', red: '#FF453A',
+              border: '#38383A', modal: '#2C2C2E', input: '#2C2C2E', tint: 'rgba(255,255,255,0.1)', tabActive: '#3A3A3C'
             } : {
               bg: '#F2F2F7', surface: '#FFFFFF', card: '#FFFFFF',
-              text: '#000000', subText: '#8E8E93',
-              gold: '#FF9500', green: '#34C759', red: '#FF3B30',
-              border: '#E5E5EA', modal: '#FFFFFF', input: '#F2F2F7',
-              tint: 'rgba(0,0,0,0.05)', tabActive: '#E5E5EA'
+              text: '#000000', subText: '#8E8E93', gold: '#FF9500', green: '#34C759', red: '#FF3B30',
+              border: '#E5E5EA', modal: '#FFFFFF', input: '#F2F2F7', tint: 'rgba(0,0,0,0.05)', tabActive: '#E5E5EA'
             };
 
-            // Menü Animasyonu
             useEffect(() => {
               Animated.parallel([
                 Animated.timing(slideAnim, { toValue: menuOpen ? 0 : -DRAWER_WIDTH, duration: 300, useNativeDriver: true }),
@@ -193,7 +163,7 @@ jobs:
               ]).start();
             }, [menuOpen]);
 
-            // --- YENİ VERİ ÇEKME FONKSİYONU ---
+            // --- YENİ API VERİ ÇEKME ---
             const loadData = async (isAuto = false) => {
               if (!isAuto) setLoading(true);
               try {
@@ -201,28 +171,19 @@ jobs:
                 const json = await resp.json();
                 
                 if (json.status === "success" && Array.isArray(json.data)) {
-                  setAllData(json.data);
-                  
-                  // KATEGORİ AYIRMA MANTIĞI
                   const currs = [];
                   const glds = [];
                   
                   json.data.forEach(item => {
-                    // Kodunda veya İsminde 'Altın', 'Gold', 'Gram', 'Çeyrek' geçenleri Altın yap
                     const code = item.kod.toUpperCase();
                     const name = item.isim.toUpperCase();
-                    
-                    if (
-                      name.includes("ALTIN") || name.includes("GOLD") || 
-                      code === "GA" || code === "C" || code === "XAU/USD" || 
-                      name.includes("ÇEYREK") || name.includes("GRAM") || name.includes("ONS")
-                    ) {
+                    // Altın ayrıştırma mantığı
+                    if (name.includes("ALTIN") || name.includes("GOLD") || code === "GA" || code === "C" || code === "XAU/USD" || name.includes("ÇEYREK") || name.includes("GRAM") || name.includes("ONS")) {
                       glds.push(item);
                     } else {
                       currs.push(item);
                     }
                   });
-                  
                   setCurrencies(currs);
                   setGolds(glds);
                 }
@@ -234,16 +195,9 @@ jobs:
             const onRefresh = () => { setRefreshing(true); loadData(true); };
 
             // --- HESAPLAMA ---
-            const parsePrice = (str) => {
-              if(!str) return 0;
-              // "43,4910" -> 43.4910 formatına çevir
-              return parseFloat(str.replace(',', '.'));
-            };
+            const parsePrice = (str) => { if(!str) return 0; return parseFloat(str.replace(',', '.')); };
 
-            const openCalculator = (item) => {
-              setSelectedItem(item); setAmount(''); setCalcResult(null); setCalcVisible(true);
-            };
-
+            const openCalculator = (item) => { setSelectedItem(item); setAmount(''); setCalcResult(null); setCalcVisible(true); };
             const handleCalculate = (text) => {
               setAmount(text);
               if (selectedItem && text) {
@@ -253,7 +207,6 @@ jobs:
               }
             };
 
-            // --- YENİ OK MANTIĞI (API'DEN GELEN VERİYE GÖRE) ---
             const getStatusColor = (durum) => {
                if(durum === 'yukseliste') return theme.green;
                if(durum === 'dususte') return theme.red;
@@ -263,48 +216,32 @@ jobs:
             const getStatusIcon = (durum) => {
                if(durum === 'yukseliste') return 'caret-up';
                if(durum === 'dususte') return 'caret-down';
-               return 'remove-outline'; // Sabit
+               return 'remove-outline'; 
             };
 
             const renderItem = ({ item }) => {
               const color = getStatusColor(item.durum);
               const icon = getStatusIcon(item.durum);
-              
               return (
                 <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.7}>
-                  <View style={[styles.card, { backgroundColor: theme.card, shadowColor: theme.text }]}>
-                    
-                    {/* SOL TARA: İSİM VE KOD */}
+                  <View style={[styles.card, { backgroundColor: theme.card }]}>
                     <View style={{flexDirection:'row', alignItems:'center', flex:1}}>
                        <View style={[styles.iconBox, { backgroundColor: theme.tint }]}>
-                          <Text style={{fontSize:18, fontWeight:'800', color: theme.gold}}>
-                            {item.kod.substring(0,1)}
-                          </Text>
+                          <Text style={{fontSize:18, fontWeight:'800', color: theme.gold}}>{item.kod.substring(0,1)}</Text>
                        </View>
                        <View style={{marginLeft: 12, flex:1}}>
                           <Text style={{color: theme.text, fontWeight:'700', fontSize:16}} numberOfLines={1}>{item.kod}</Text>
                           <Text style={{color: theme.subText, fontSize:11, marginTop:2}} numberOfLines={1}>{item.isim}</Text>
                        </View>
                     </View>
-
-                    {/* SAĞ TARAF: FİYAT VE DURUM */}
                     <View style={{alignItems:'flex-end'}}>
                        <View style={{flexDirection:'row', alignItems:'center'}}>
-                          <Text style={{color: theme.text, fontSize:18, fontWeight:'800', marginRight:4, fontVariant: ['tabular-nums']}}>
-                            {item.satis}
-                          </Text>
-                          {/* İbre (Ok) Burada - API'den gelen duruma göre */}
+                          <Text style={{color: theme.text, fontSize:18, fontWeight:'800', marginRight:4, fontVariant: ['tabular-nums']}}>{item.satis}</Text>
                           <Ionicons name={icon} size={18} color={color} />
                        </View>
-                       
                        <View style={{flexDirection:'row', marginTop:4, alignItems:'center'}}>
-                          {/* Değişim Oranı */}
-                          <Text style={{color: color, fontSize:11, fontWeight:'600', marginRight: 8}}>
-                            {item.degisim}
-                          </Text>
-                          <Text style={{color: theme.subText, fontSize:11}}>
-                            {T.buy}: {item.alis}
-                          </Text>
+                          <Text style={{color: color, fontSize:11, fontWeight:'600', marginRight: 8}}>{item.degisim}</Text>
+                          <Text style={{color: theme.subText, fontSize:11}}>{T.buy}: {item.alis}</Text>
                        </View>
                     </View>
                   </View>
@@ -325,12 +262,12 @@ jobs:
                     <View style={styles.headerBtn} /> 
                 </View>
 
-                {/* KATEGORİ SEKMELERİ (TABS) */}
+                {/* TABS */}
                 <View style={[styles.tabContainer, { backgroundColor: theme.surface }]}>
-                   <TouchableOpacity onPress={() => setActiveTab('currency')} style={[styles.tabBtn, activeTab === 'currency' && { backgroundColor: theme.tabActive, borderColor: theme.border }]}>
+                   <TouchableOpacity onPress={() => setActiveTab('currency')} style={[styles.tabBtn, activeTab === 'currency' && { backgroundColor: theme.tabActive }]}>
                       <Text style={[styles.tabText, { color: activeTab === 'currency' ? theme.gold : theme.subText }]}>{T.tab_currency}</Text>
                    </TouchableOpacity>
-                   <TouchableOpacity onPress={() => setActiveTab('gold')} style={[styles.tabBtn, activeTab === 'gold' && { backgroundColor: theme.tabActive, borderColor: theme.border }]}>
+                   <TouchableOpacity onPress={() => setActiveTab('gold')} style={[styles.tabBtn, activeTab === 'gold' && { backgroundColor: theme.tabActive }]}>
                       <Text style={[styles.tabText, { color: activeTab === 'gold' ? theme.gold : theme.subText }]}>{T.tab_gold}</Text>
                    </TouchableOpacity>
                 </View>
@@ -348,11 +285,11 @@ jobs:
                   />
                 )}
 
-                {/* REKLAM ALANI */}
+                {/* REKLAM ALANI (SİMÜLASYON) */}
                 <View style={[styles.bannerContainer, { paddingBottom: insets.bottom + 10, backgroundColor: theme.surface, borderTopColor: theme.border }]}>
                   <Text style={{color: theme.subText, fontSize:9, marginBottom:4, letterSpacing:1}}>{T.adSpace}</Text>
                   <View style={[styles.bannerBox, { backgroundColor: theme.tint, borderColor: theme.border }]}>
-                      <Text style={{color: theme.gold, fontWeight:'600', fontSize:12}}>BANNER REKLAM</Text>
+                      <Text style={{color: theme.gold, fontWeight:'600', fontSize:12, textAlign:'center'}}>{T.bannerPlace}</Text>
                   </View>
                 </View>
 
@@ -368,7 +305,6 @@ jobs:
                        <Text style={{fontSize: 28, fontWeight: '800', color: theme.text}}>{T.settings}</Text>
                        <Text style={{fontSize: 14, color: theme.subText, marginTop: 5}}>v1.0.0 Pro Mode</Text>
                     </View>
-
                     <ScrollView style={{flex:1}}>
                        <View style={styles.menuSection}>
                           <Text style={[styles.menuHeader, {color: theme.subText}]}>{T.theme.toUpperCase()}</Text>
@@ -379,7 +315,6 @@ jobs:
                             </TouchableOpacity>
                           ))}
                        </View>
-
                        <View style={styles.menuSection}>
                           <Text style={[styles.menuHeader, {color: theme.subText}]}>{T.language.toUpperCase()}</Text>
                           {['tr', 'en'].map((l) => (
@@ -404,18 +339,15 @@ jobs:
                                 <Ionicons name="close" size={20} color={theme.subText} />
                               </TouchableOpacity>
                            </View>
-                           
                            <View style={{alignItems:'center', marginBottom:20}}>
                               <Text style={{color: theme.subText, fontSize:14}}>{selectedItem?.isim}</Text>
                               <Text style={{color: theme.gold, fontSize:32, fontWeight:'800', marginVertical:5}}>{selectedItem?.satis} ₺</Text>
                            </View>
-
                            <TextInput 
                               style={[styles.input, { backgroundColor: theme.input, color: theme.text }]}
                               placeholder={T.amount} placeholderTextColor={theme.subText} keyboardType="numeric"
                               value={amount} onChangeText={handleCalculate} autoFocus={true}
                            />
-                           
                            {calcResult && (
                               <View style={{marginTop:20, padding:16, backgroundColor: theme.green, borderRadius:16, alignItems:'center'}}>
                                  <Text style={{color:'#FFF', fontSize:28, fontWeight:'800'}}>{calcResult} ₺</Text>
@@ -435,23 +367,18 @@ jobs:
             header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, zIndex: 1 },
             headerBtn: { width: 40, height: 40, justifyContent:'center', alignItems:'center' },
             title: { fontSize: 20, fontWeight: '800', letterSpacing: 0.5 },
-            
-            // TABS
             tabContainer: { flexDirection: 'row', padding: 10, gap: 10 },
             tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: 'transparent' },
             tabText: { fontWeight: '700', fontSize: 14 },
-
             card: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, marginHorizontal: 16, borderRadius: 16, shadowOpacity: 0.05, shadowRadius: 5, shadowOffset: {width:0, height:2}, elevation: 2 },
             iconBox: { width: 44, height: 44, borderRadius: 22, justifyContent:'center', alignItems:'center' },
             bannerContainer: { alignItems:'center', borderTopWidth:0.5, padding: 10 },
             bannerBox: { width: 320, height: 50, borderWidth:1, borderStyle:'dashed', justifyContent:'center', alignItems:'center', borderRadius:12 },
-            
             menuOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10 },
             drawer: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 11, shadowColor: "#000", shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 20 },
             menuSection: { marginTop: 20, paddingHorizontal: 20 },
             menuHeader: { fontSize: 12, fontWeight: '700', marginBottom: 8, letterSpacing: 1 },
             menuItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 0.5 },
-
             modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
             calcContent: { width: '100%', padding: 24, borderTopLeftRadius: 32, borderTopRightRadius: 32 },
             dragHandle: { width: 40, height: 5, backgroundColor: '#CCC', borderRadius: 3, alignSelf: 'center', marginBottom: 20, opacity: 0.5 },
@@ -459,7 +386,7 @@ jobs:
           });
           EOF
 
-      # 6. APP.JSON
+      # 6. APP.JSON (AdMob Plugin Kaldırıldı - Update Hata Vermesin Diye)
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
@@ -490,23 +417,6 @@ jobs:
                   "backgroundColor": "#000000"
                 }
               },
-              "plugins": [
-                [
-                  "react-native-google-mobile-ads",
-                  {
-                    "androidAppId": "ca-app-pub-2289573527937577~7422350827",
-                    "iosAppId": "ca-app-pub-2289573527937577~7422350827"
-                  }
-                ],
-                [
-                  "expo-build-properties",
-                  {
-                    "ios": {
-                      "useFrameworks": "static"
-                    }
-                  }
-                ]
-              ],
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
               "runtimeVersion": { "policy": "appVersion" },
               "extra": { "eas": { "projectId": "7b7866e2-688e-4e87-af97-88213b2670d4" } }
@@ -523,4 +433,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "New API + Categories + Fix" --non-interactive
+          eas update --branch preview --message "New API + Categories + NO ERROR" --non-interactive
