@@ -18,7 +18,7 @@ jobs:
       - name: 🏗 Depoyu Çek
         uses: actions/checkout@v4
 
-      # 1. TEMİZLİK
+      # 1) TEMİZLİK
       - name: 🧹 Derin Temizlik
         run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js App.js GoogleService-Info.plist credentials.json
 
@@ -27,11 +27,11 @@ jobs:
         with:
           node-version: 20
 
-      # 2. GÖRSELLER
+      # 2) GÖRSELLER
       - name: 🎨 Görselleri Oluştur
         run: |
           sudo apt-get update -y
-          sudo apt-get install imagemagick -y
+          sudo apt-get install -y imagemagick
           mkdir -p assets
 
           # İkon
@@ -45,12 +45,12 @@ jobs:
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 3. PACKAGE.JSON (Favori + Alarm + Push + Grafik)
+      # 3) PACKAGE.JSON (Favoriler + Alarm + Push altyapı + Grafik)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
           {
-            "name": "anlikpiyasa",
+            "name": "eminxtream",
             "version": "1.1.0",
             "main": "node_modules/expo/AppEntry.js",
             "dependencies": {
@@ -77,7 +77,7 @@ jobs:
           }
           EOF
 
-      # 4. CONFIG DOSYALARI
+      # 4) CONFIG DOSYALARI + EAS
       - name: ⚙️ Config Dosyaları
         run: |
           cat > babel.config.js <<'EOF'
@@ -96,7 +96,7 @@ jobs:
           module.exports = config;
           EOF
 
-          # EAS profilleri (update + build)
+          # EAS profilleri
           cat > eas.json <<'EOF'
           {
             "build": {
@@ -114,7 +114,7 @@ jobs:
           }
           EOF
 
-      # 5. APP.JS (Favoriler + Alarm + Push Altyapı + Sparkline + Pro Mode)
+      # 5) APP.JS (FULL: Favoriler + Alarm + PushInfra + Sparkline + ProMode + API Fix)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
@@ -133,7 +133,7 @@ jobs:
           import Svg, { Polyline } from 'react-native-svg';
 
           // =======================
-          //  AYARLAR (DEĞİŞTİR)
+          //  AYARLAR
           // =======================
           const DATA_URL = "https://creatorapp24.com/pre.php";
 
@@ -141,11 +141,8 @@ jobs:
           // ÖRNEK: "https://seninsite.com/push"
           const PUSH_SERVER_URL = ""; // opsiyonel
 
-          // Veri yenileme
           const AUTO_REFRESH_MS = 15000;
           const FETCH_TIMEOUT_MS = 12000;
-
-          // Local alarm tekrar bildirimi engelleme (aynı alarm 5 dk içinde tekrar çalmasın)
           const ALARM_COOLDOWN_MS = 5 * 60 * 1000;
 
           const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -242,7 +239,6 @@ jobs:
             }
           };
 
-          // Bildirim handler (iOS/Android)
           Notifications.setNotificationHandler({
             handleNotification: async () => ({
               shouldShowAlert: true,
@@ -268,41 +264,31 @@ jobs:
             }
           }
 
-          // Fiyat parse: "$4.887,42", "4.887,42 ₺", "4887.42", "4,887.42" gibi durumları dayanıklı ele alır
+          // Dayanıklı fiyat parse
           function parsePrice(str) {
             if (str === null || str === undefined) return NaN;
             let s = String(str).trim();
-
-            // para birimi / semboller
             s = s.replace(/[₺$€£]/g, '').replace(/TL/gi, '').replace(/\s+/g, '').trim();
-
             if (!s) return NaN;
 
             const hasComma = s.includes(',');
             const hasDot = s.includes('.');
 
-            // TR: "4.887,42" -> 4887.42
             if (hasComma && hasDot) {
-              // Son ayraç virgülse: binlik "." kaldır, "," -> "."
               if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
                 s = s.replace(/\./g, '').replace(',', '.');
               } else {
-                // "4,887.42" gibi: binlik "," kaldır
                 s = s.replace(/,/g, '');
               }
             } else if (hasComma && !hasDot) {
-              // "123,45" -> 123.45
               s = s.replace(',', '.');
-            } else {
-              // sadece nokta veya hiç ayraç yok: olduğu gibi
-              s = s;
             }
 
             const v = parseFloat(s);
             return isNaN(v) ? NaN : v;
           }
 
-          // Sparkline noktaları
+          // Sparkline
           function buildSparkPoints(arr, w, h) {
             if (!Array.isArray(arr) || arr.length < 2) return null;
             const values = arr.map(p => Number(p?.v)).filter(v => Number.isFinite(v));
@@ -336,9 +322,6 @@ jobs:
             try { await AsyncStorage.setItem(key, JSON.stringify(val)); } catch {}
           }
 
-          // =======================
-          //  MAIN APP
-          // =======================
           function MainApp() {
             const insets = useSafeAreaInsets();
             const colorScheme = Appearance.getColorScheme();
@@ -357,14 +340,13 @@ jobs:
             const [menuOpen, setMenuOpen] = useState(false);
             const [proMode, setProMode] = useState(false);
 
-            const [favorites, setFavorites] = useState({}); // { kod: true }
+            const [favorites, setFavorites] = useState({});
             const [onlyFavs, setOnlyFavs] = useState(false);
 
-            const [alarms, setAlarms] = useState([]); // [{id, code, type, target, enabled, lastTriggered}]
+            const [alarms, setAlarms] = useState([]);
             const [pushToken, setPushToken] = useState('');
             const [notiGranted, setNotiGranted] = useState(false);
 
-            // Modals
             const [detailVisible, setDetailVisible] = useState(false);
             const [selectedItem, setSelectedItem] = useState(null);
 
@@ -372,7 +354,7 @@ jobs:
             const [calcResult, setCalcResult] = useState(null);
 
             const [alarmModalVisible, setAlarmModalVisible] = useState(false);
-            const [alarmType, setAlarmType] = useState('above'); // above | below
+            const [alarmType, setAlarmType] = useState('above');
             const [alarmTarget, setAlarmTarget] = useState('');
 
             const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
@@ -400,20 +382,12 @@ jobs:
             // Drawer anim
             useEffect(() => {
               Animated.parallel([
-                Animated.timing(slideAnim, {
-                  toValue: menuOpen ? 0 : -DRAWER_WIDTH,
-                  duration: 260,
-                  useNativeDriver: true
-                }),
-                Animated.timing(fadeAnim, {
-                  toValue: menuOpen ? 1 : 0,
-                  duration: 260,
-                  useNativeDriver: true
-                })
+                Animated.timing(slideAnim, { toValue: menuOpen ? 0 : -DRAWER_WIDTH, duration: 260, useNativeDriver: true }),
+                Animated.timing(fadeAnim, { toValue: menuOpen ? 1 : 0, duration: 260, useNativeDriver: true })
               ]).start();
             }, [menuOpen]);
 
-            // Load persisted settings
+            // Persisted load
             useEffect(() => {
               (async () => {
                 const fav = await storageGet(STORAGE_KEYS.favorites, {});
@@ -434,14 +408,10 @@ jobs:
               })();
             }, []);
 
-            // Persist settings
-            useEffect(() => {
-              storageSet(STORAGE_KEYS.favorites, favorites);
-            }, [favorites]);
+            useEffect(() => { storageSet(STORAGE_KEYS.favorites, favorites); }, [favorites]);
 
             useEffect(() => {
               storageSet(STORAGE_KEYS.alarms, alarms);
-              // push server varsa alarm sync dene
               if (PUSH_SERVER_URL && pushToken) syncAlarmsToServer(alarms).catch(() => {});
             }, [alarms]);
 
@@ -466,9 +436,7 @@ jobs:
                       }
                     }
                   }
-                } catch {
-                  // sessiz
-                }
+                } catch {}
               })();
             }, []);
 
@@ -476,7 +444,6 @@ jobs:
               try {
                 const settings = await Notifications.getPermissionsAsync();
                 let status = settings?.status;
-
                 if (status !== 'granted') {
                   const req = await Notifications.requestPermissionsAsync();
                   status = req?.status;
@@ -489,14 +456,12 @@ jobs:
 
             async function getExpoPushTokenSafe() {
               try {
-                // Simülatörde token yok
                 if (!Device.isDevice) return '';
                 const projectId =
                   Constants?.expoConfig?.extra?.eas?.projectId ||
                   Constants?.easConfig?.projectId ||
                   '';
                 if (!projectId) return '';
-
                 const token = (await Notifications.getExpoPushTokenAsync({ projectId }))?.data;
                 return token || '';
               } catch {
@@ -519,9 +484,7 @@ jobs:
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(body)
                 });
-              } catch {
-                // sessiz
-              }
+              } catch {}
             }
 
             async function syncAlarmsToServer(list) {
@@ -533,50 +496,34 @@ jobs:
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(body)
                 });
-              } catch {
-                // sessiz
-              }
+              } catch {}
             }
 
-            // Fetch with timeout + safe parse
+            // Fetch + timeout
             const loadData = async (isAuto = false) => {
               if (!isAuto) setLoading(true);
               try {
                 const controller = new AbortController();
                 const t = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-                const resp = await fetch(DATA_URL, {
-                  headers: { 'Cache-Control': 'no-cache' },
-                  signal: controller.signal
-                });
-
+                const resp = await fetch(DATA_URL, { headers: { 'Cache-Control': 'no-cache' }, signal: controller.signal });
                 clearTimeout(t);
 
                 const text = await resp.text();
                 const json = safeJsonParse(text);
                 if (!json) {
-                  // JSON bozuk
-                  // sadece console, UI’yı çökertme
                   console.error(T.errorJson);
                   return;
                 }
 
-                // meta.updated_at (opsiyonel)
                 if (json.meta?.updated_at) setUpdatedAt(formatUpdatedAt(json.meta.updated_at));
-
-                // history map (opsiyonel)
                 if (json.history && typeof json.history === 'object') setHistoryMap(json.history);
 
-                // { veriler: { doviz:[], altin:[] } }
                 if (json.veriler) {
                   if (Array.isArray(json.veriler.doviz)) setCurrencies(json.veriler.doviz);
                   if (Array.isArray(json.veriler.altin)) setGolds(json.veriler.altin);
-                } else {
-                  // fallback: bilinmeyen yapı
-                  // kırma, sadece boş bırak
                 }
 
-                // alarm kontrol (local)
                 runLocalAlarmChecks(json);
 
               } catch (e) {
@@ -610,7 +557,6 @@ jobs:
                   addToMap(json.veriler.doviz);
                   addToMap(json.veriler.altin);
                 } else {
-                  // state’den kontrol (fallback)
                   addToMap(currencies);
                   addToMap(golds);
                 }
@@ -620,6 +566,7 @@ jobs:
 
                 const next = list.map(a => {
                   if (!a?.enabled) return a;
+
                   const code = a?.code;
                   const row = map.get(code);
                   if (!row) return a;
@@ -643,10 +590,7 @@ jobs:
                 });
 
                 if (changed) setAlarms(next);
-
-              } catch {
-                // sessiz
-              }
+              } catch {}
             }
 
             async function fireLocalNotification(code, price, type, target) {
@@ -661,9 +605,7 @@ jobs:
                   content: { title, body },
                   trigger: null
                 });
-              } catch {
-                // sessiz
-              }
+              } catch {}
             }
 
             useEffect(() => {
@@ -671,7 +613,7 @@ jobs:
               const i = setInterval(() => loadData(true), AUTO_REFRESH_MS);
               return () => clearInterval(i);
               // eslint-disable-next-line react-hooks/exhaustive-deps
-            }, [notiGranted]); // izin değişirse kontrol mantığı tekrar düzgün çalışsın
+            }, [notiGranted]);
 
             const onRefresh = () => {
               setRefreshing(true);
@@ -697,12 +639,9 @@ jobs:
               });
             };
 
-            // Tab data
             const baseData = useMemo(() => {
               if (activeTab === 'currency') return currencies;
               if (activeTab === 'gold') return golds;
-
-              // fav tab: hem döviz hem altın, favorilere göre
               const all = [...(currencies || []), ...(golds || [])];
               return all.filter(it => isFavorite(it?.kod));
             }, [activeTab, currencies, golds, favorites]);
@@ -724,11 +663,8 @@ jobs:
               try {
                 const val = parsePrice(text);
                 const price = parsePrice(selectedItem?.satis);
-                if (Number.isFinite(val) && Number.isFinite(price)) {
-                  setCalcResult((val * price).toFixed(2));
-                } else {
-                  setCalcResult(null);
-                }
+                if (Number.isFinite(val) && Number.isFinite(price)) setCalcResult((val * price).toFixed(2));
+                else setCalcResult(null);
               } catch {
                 setCalcResult(null);
               }
@@ -790,22 +726,13 @@ jobs:
                       </View>
 
                       <View style={{marginLeft: 12, flex:1}}>
-                        <Text style={{color: theme.text, fontWeight:'800', fontSize:16}} numberOfLines={1}>{code}</Text>
-                        <Text style={{color: theme.subText, fontSize:11, marginTop:2}} numberOfLines={1}>
-                          {displayName}
-                        </Text>
+                        <Text style={{color: theme.text, fontWeight:'900', fontSize:16}} numberOfLines={1}>{code}</Text>
+                        <Text style={{color: theme.subText, fontSize:11, marginTop:2}} numberOfLines={1}>{displayName}</Text>
 
                         {spark ? (
                           <View style={{ marginTop: 6, width: 90, height: 30, opacity: 0.9 }}>
                             <Svg width={90} height={30}>
-                              <Polyline
-                                points={spark}
-                                fill="none"
-                                stroke={status.color}
-                                strokeWidth="2"
-                                strokeLinejoin="round"
-                                strokeLinecap="round"
-                              />
+                              <Polyline points={spark} fill="none" stroke={status.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
                             </Svg>
                           </View>
                         ) : (
@@ -829,7 +756,7 @@ jobs:
                       </View>
 
                       <View style={{flexDirection:'row', marginTop:4, alignItems:'center'}}>
-                        <Text style={{color: status.color, fontSize:11, fontWeight:'700', marginRight: 8}}>
+                        <Text style={{color: status.color, fontSize:11, fontWeight:'800', marginRight: 8}}>
                           {item?.degisim}
                         </Text>
                         <Text style={{color: theme.subText, fontSize:11}}>
@@ -849,9 +776,7 @@ jobs:
                 </TouchableOpacity>
 
                 <View style={{alignItems:'center'}}>
-                  <Text style={[styles.title, { color: theme.text }]}>
-                    ANLIK <Text style={{color: theme.gold}}>PİYASA</Text>
-                  </Text>
+                  <Text style={[styles.title, { color: theme.text }]}>ANLIK <Text style={{color: theme.gold}}>PİYASA</Text></Text>
                   {!!updatedAt && (
                     <Text style={{color: theme.subText, fontSize:10, marginTop:2}}>
                       {T.updatedAt}: {updatedAt}
@@ -867,24 +792,15 @@ jobs:
 
             const Tabs = () => (
               <View style={[styles.tabContainer, { backgroundColor: theme.surface }]}>
-                <TouchableOpacity
-                  onPress={() => setActiveTab('currency')}
-                  style={[styles.tabBtn, activeTab === 'currency' && { backgroundColor: theme.tabActive }]}
-                >
+                <TouchableOpacity onPress={() => setActiveTab('currency')} style={[styles.tabBtn, activeTab === 'currency' && { backgroundColor: theme.tabActive }]}>
                   <Text style={[styles.tabText, { color: activeTab === 'currency' ? theme.gold : theme.subText }]}>{T.tab_currency}</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => setActiveTab('gold')}
-                  style={[styles.tabBtn, activeTab === 'gold' && { backgroundColor: theme.tabActive }]}
-                >
+                <TouchableOpacity onPress={() => setActiveTab('gold')} style={[styles.tabBtn, activeTab === 'gold' && { backgroundColor: theme.tabActive }]}>
                   <Text style={[styles.tabText, { color: activeTab === 'gold' ? theme.gold : theme.subText }]}>{T.tab_gold}</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => setActiveTab('fav')}
-                  style={[styles.tabBtn, activeTab === 'fav' && { backgroundColor: theme.tabActive }]}
-                >
+                <TouchableOpacity onPress={() => setActiveTab('fav')} style={[styles.tabBtn, activeTab === 'fav' && { backgroundColor: theme.tabActive }]}>
                   <Text style={[styles.tabText, { color: activeTab === 'fav' ? theme.gold : theme.subText }]}>{T.tab_fav}</Text>
                 </TouchableOpacity>
               </View>
@@ -909,7 +825,7 @@ jobs:
                     ItemSeparatorComponent={() => <View style={{height: 10}} />}
                     ListEmptyComponent={
                       <Text style={{color:theme.subText, textAlign:'center', marginTop:20}}>
-                        {T.favorites}: {Object.keys(favorites || {}).length} / {T.onlyFavs}: {onlyFavs ? 'ON' : 'OFF'}
+                        {T.favorites}: {Object.keys(favorites || {}).length}
                       </Text>
                     }
                   />
@@ -930,17 +846,7 @@ jobs:
                   </Animated.View>
                 )}
 
-                <Animated.View
-                  style={[
-                    styles.drawer,
-                    {
-                      width: DRAWER_WIDTH,
-                      backgroundColor: theme.surface,
-                      transform: [{ translateX: slideAnim }],
-                      paddingTop: insets.top + 18
-                    }
-                  ]}
-                >
+                <Animated.View style={[styles.drawer, { width: DRAWER_WIDTH, backgroundColor: theme.surface, transform: [{ translateX: slideAnim }], paddingTop: insets.top + 18 }]}>
                   <View style={{paddingHorizontal: 20, marginBottom: 18}}>
                     <Text style={{fontSize: 28, fontWeight: '900', color: theme.text}}>{T.settings}</Text>
                     <Text style={{fontSize: 13, color: theme.subText, marginTop: 6}}>
@@ -956,15 +862,9 @@ jobs:
                   <ScrollView style={{flex:1}}>
                     <View style={styles.menuSection}>
                       <Text style={[styles.menuHeader, {color: theme.subText}]}>{T.proMode.toUpperCase()}</Text>
-                      <TouchableOpacity
-                        onPress={() => setProMode(v => !v)}
-                        style={[styles.menuItem, {borderBottomColor: theme.border}]}
-                      >
-                        <Text style={{color: theme.text, fontSize:16, fontWeight:'700'}}>{T.proMode}</Text>
-                        <View style={{flexDirection:'row', alignItems:'center', gap: 8}}>
-                          <Text style={{color: theme.subText, fontSize:12}}>{proMode ? T.proDesc : ''}</Text>
-                          <Ionicons name={proMode ? "checkmark-circle" : "ellipse-outline"} size={22} color={proMode ? theme.gold : theme.subText} />
-                        </View>
+                      <TouchableOpacity onPress={() => setProMode(v => !v)} style={[styles.menuItem, {borderBottomColor: theme.border}]}>
+                        <Text style={{color: theme.text, fontSize:16, fontWeight:'800'}}>{T.proMode}</Text>
+                        <Ionicons name={proMode ? "checkmark-circle" : "ellipse-outline"} size={22} color={proMode ? theme.gold : theme.subText} />
                       </TouchableOpacity>
                     </View>
 
@@ -990,10 +890,7 @@ jobs:
 
                     <View style={styles.menuSection}>
                       <Text style={[styles.menuHeader, {color: theme.subText}]}>{T.favorites.toUpperCase()}</Text>
-                      <TouchableOpacity
-                        onPress={() => setOnlyFavs(v => !v)}
-                        style={[styles.menuItem, {borderBottomColor: theme.border}]}
-                      >
+                      <TouchableOpacity onPress={() => setOnlyFavs(v => !v)} style={[styles.menuItem, {borderBottomColor: theme.border}]}>
                         <Text style={{color: theme.text, fontSize:16}}>{T.onlyFavs}</Text>
                         <Ionicons name={onlyFavs ? "checkmark" : "remove-outline"} size={22} color={onlyFavs ? theme.gold : theme.subText} />
                       </TouchableOpacity>
@@ -1001,7 +898,7 @@ jobs:
                   </ScrollView>
                 </Animated.View>
 
-                {/* DETAIL MODAL: Hesap + Favori + Alarm */}
+                {/* DETAIL MODAL */}
                 <Modal visible={detailVisible} transparent animationType="slide" onRequestClose={() => setDetailVisible(false)}>
                   <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
                     <TouchableOpacity style={{flex:1, justifyContent:'flex-end'}} activeOpacity={1} onPress={() => setDetailVisible(false)}>
@@ -1020,7 +917,7 @@ jobs:
 
                           <View style={{flexDirection:'row', alignItems:'center', gap: 10}}>
                             <TouchableOpacity onPress={() => toggleFavorite(selectedItem?.kod)} style={{padding:8, backgroundColor: theme.tint, borderRadius:18}}>
-                              <Ionicons name={isFavorite(selectedItem?.kod) ? "star" : "star-outline"} size={18} color={theme.gold} />
+                              <Ionicons name={favorites?.[selectedItem?.kod] ? "star" : "star-outline"} size={18} color={theme.gold} />
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => setDetailVisible(false)} style={{padding:8, backgroundColor: theme.tint, borderRadius:18}}>
                               <Ionicons name="close" size={18} color={theme.subText} />
@@ -1037,8 +934,7 @@ jobs:
                           </Text>
                         </View>
 
-                        {/* Calculator */}
-                        <Text style={{color:theme.text, fontSize:16, fontWeight:'800', marginBottom: 10}}>{T.calcTitle}</Text>
+                        <Text style={{color:theme.text, fontSize:16, fontWeight:'900', marginBottom: 10}}>{T.calcTitle}</Text>
                         <TextInput
                           style={[styles.input, { backgroundColor: theme.input, color: theme.text }]}
                           placeholder={T.amount}
@@ -1053,7 +949,6 @@ jobs:
                           </View>
                         )}
 
-                        {/* Alarms */}
                         <View style={{marginTop:18}}>
                           <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
                             <Text style={{color:theme.text, fontSize:16, fontWeight:'900'}}>{T.alarms}</Text>
@@ -1067,13 +962,13 @@ jobs:
                               }}
                               style={{paddingHorizontal:12, paddingVertical:8, backgroundColor: theme.tint, borderRadius:12}}
                             >
-                              <Text style={{color: theme.gold, fontWeight:'800'}}>{T.addAlarm}</Text>
+                              <Text style={{color: theme.gold, fontWeight:'900'}}>{T.addAlarm}</Text>
                             </TouchableOpacity>
                           </View>
 
                           {itemAlarms.length === 0 ? (
                             <Text style={{color: theme.subText, fontSize:12, marginTop: 10}}>
-                              {PUSH_SERVER_URL ? "Push server varsa kapalıyken de çalışır." : "Şu an local alarm (uygulama açıkken) çalışır."}
+                              {PUSH_SERVER_URL ? "Push server varsa kapalıyken de çalışır." : "Local alarm: uygulama açıkken kontrol edilir."}
                             </Text>
                           ) : (
                             <View style={{marginTop: 10}}>
@@ -1101,7 +996,6 @@ jobs:
                           )}
                         </View>
 
-                        {/* Alarm Add Modal */}
                         <Modal visible={alarmModalVisible} transparent animationType="fade" onRequestClose={() => setAlarmModalVisible(false)}>
                           <View style={[styles.centerOverlay, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
                             <View style={[styles.alarmBox, { backgroundColor: theme.modal, borderColor: theme.border }]}>
@@ -1114,14 +1008,14 @@ jobs:
                                   onPress={() => setAlarmType('above')}
                                   style={[styles.chip, { backgroundColor: alarmType === 'above' ? theme.tabActive : theme.tint, borderColor: theme.border }]}
                                 >
-                                  <Text style={{color: alarmType === 'above' ? theme.gold : theme.text, fontWeight:'800'}}>{T.alarmAbove}</Text>
+                                  <Text style={{color: alarmType === 'above' ? theme.gold : theme.text, fontWeight:'900'}}>{T.alarmAbove}</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
                                   onPress={() => setAlarmType('below')}
                                   style={[styles.chip, { backgroundColor: alarmType === 'below' ? theme.tabActive : theme.tint, borderColor: theme.border }]}
                                 >
-                                  <Text style={{color: alarmType === 'below' ? theme.gold : theme.text, fontWeight:'800'}}>{T.alarmBelow}</Text>
+                                  <Text style={{color: alarmType === 'below' ? theme.gold : theme.text, fontWeight:'900'}}>{T.alarmBelow}</Text>
                                 </TouchableOpacity>
                               </View>
 
@@ -1136,7 +1030,7 @@ jobs:
 
                               <View style={{flexDirection:'row', justifyContent:'flex-end', gap: 10, marginTop: 14}}>
                                 <TouchableOpacity onPress={() => setAlarmModalVisible(false)} style={[styles.btn, { backgroundColor: theme.tint }]}>
-                                  <Text style={{color: theme.text, fontWeight:'800'}}>{T.cancel}</Text>
+                                  <Text style={{color: theme.text, fontWeight:'900'}}>{T.cancel}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={createAlarm} style={[styles.btn, { backgroundColor: theme.gold }]}>
                                   <Text style={{color: '#000', fontWeight:'900'}}>{T.save}</Text>
@@ -1145,7 +1039,7 @@ jobs:
 
                               {!PUSH_SERVER_URL && (
                                 <Text style={{color: theme.subText, fontSize:11, marginTop: 12}}>
-                                  Not: Push server yok → alarmlar uygulama açıkken kontrol edilir.
+                                  Push server yok → alarmlar uygulama açıkken kontrol edilir.
                                 </Text>
                               )}
                             </View>
@@ -1172,15 +1066,7 @@ jobs:
           const styles = StyleSheet.create({
             container: { flex: 1 },
 
-            header: {
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              paddingHorizontal: 16,
-              paddingBottom: 12,
-              borderBottomWidth: 0.5,
-              zIndex: 1
-            },
+            header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, zIndex: 1 },
             headerBtn: { width: 42, height: 42, justifyContent:'center', alignItems:'center' },
             title: { fontSize: 20, fontWeight: '900', letterSpacing: 0.5 },
 
@@ -1188,45 +1074,25 @@ jobs:
             tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: 'transparent' },
             tabText: { fontWeight: '900', fontSize: 13 },
 
-            card: {
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              padding: 16,
-              marginHorizontal: 16,
-              borderRadius: 18,
-              shadowOpacity: 0.05,
-              shadowRadius: 6,
-              shadowOffset: {width:0, height:2},
-              elevation: 2
-            },
+            card: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, marginHorizontal: 16, borderRadius: 18, shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: {width:0, height:2}, elevation: 2 },
             iconBox: { width: 44, height: 44, borderRadius: 22, justifyContent:'center', alignItems:'center' },
 
             bannerContainer: { alignItems:'center', borderTopWidth:0.5, padding: 10 },
             bannerBox: { width: 320, height: 50, borderWidth:1, borderStyle:'dashed', justifyContent:'center', alignItems:'center', borderRadius:12 },
 
             menuOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10 },
-            drawer: {
-              position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 11,
-              shadowColor: "#000", shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 20
-            },
+            drawer: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 11, shadowColor: "#000", shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 20 },
             menuSection: { marginTop: 18, paddingHorizontal: 20 },
             menuHeader: { fontSize: 12, fontWeight: '900', marginBottom: 8, letterSpacing: 1 },
             menuItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 0.5 },
 
             modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
             detailContent: { width: '100%', padding: 22, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
-
             dragHandle: { width: 44, height: 5, backgroundColor: '#CCC', borderRadius: 3, alignSelf: 'center', marginBottom: 14, opacity: 0.35 },
-            input: { height: 56, borderRadius: 16, paddingHorizontal: 18, fontSize: 20, fontWeight:'700' },
 
-            alarmRow: {
-              flexDirection:'row',
-              alignItems:'center',
-              padding: 12,
-              borderWidth: 1,
-              borderRadius: 14,
-              marginBottom: 10
-            },
+            input: { height: 56, borderRadius: 16, paddingHorizontal: 18, fontSize: 20, fontWeight:'800' },
+
+            alarmRow: { flexDirection:'row', alignItems:'center', padding: 12, borderWidth: 1, borderRadius: 14, marginBottom: 10 },
 
             centerOverlay: { flex: 1, justifyContent:'center', alignItems:'center', padding: 20 },
             alarmBox: { width: '100%', borderWidth: 1, borderRadius: 18, padding: 16 },
@@ -1236,14 +1102,14 @@ jobs:
           });
           EOF
 
-      # 6. APP.JSON (notifications plugin + runtime)
+      # 6) APP.JSON (slug eminxtream: PROJECTID ile uyumlu!)
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
           {
             "expo": {
               "name": "ANLIK PİYASA",
-              "slug": "anlikpiyasa",
+              "slug": "eminxtream",
               "version": "1.1.0",
               "orientation": "portrait",
               "userInterfaceStyle": "automatic",
@@ -1288,7 +1154,7 @@ jobs:
           npm install -g eas-cli
           npm install --legacy-peer-deps
 
-      # (Opsiyonel) BUILD: workflow_dispatch -> do_build=true
+      # Opsiyonel BUILD (workflow_dispatch input do_build=true)
       - name: 🧱 EAS Build (Opsiyonel)
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.do_build == 'true' }}
         env:
@@ -1296,7 +1162,7 @@ jobs:
         run: |
           eas build --platform ios --profile preview --non-interactive --no-wait || true
 
-      # UPDATE (EAS Update)
+      # UPDATE
       - name: 🚀 Güncelle (Update)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
