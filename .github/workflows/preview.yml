@@ -1,4 +1,4 @@
-name: ANLIK PİYASA - FINAL API FIX (NO PUSH SERVER + ADMOB + 5 CLICK INTERSTITIAL)
+name: ANLIK PİYASA - FINAL API FIX
 
 on:
   push:
@@ -15,32 +15,33 @@ jobs:
 
       # 1) TEMİZLİK
       - name: 🧹 Derin Temizlik
-        run: rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js App.js GoogleService-Info.plist credentials.json
+        run: |
+          rm -rf node_modules package-lock.json package.json eas.json babel.config.js app.json assets metro.config.js App.js GoogleService-Info.plist credentials.json
 
-      - name: 🏗 Node.js Kurulumu (v20)
+      - name: 🏗 Node.js Kurulumu (20.19.4)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 20.19.4
 
       # 2) GÖRSELLER
       - name: 🎨 Görselleri Oluştur
         run: |
-          sudo apt-get update
+          sudo apt-get update -y
           sudo apt-get install imagemagick -y
           mkdir -p assets
-          
+
           # İkon
           curl -L -o assets/icon.png "https://i.ibb.co/99mj6zkx/71cf52be-22d6-4382-8a4e-bb42ea43796e.png"
-          
+
           # Splash
           convert -size 1242x2688 xc:"#000000" \
             -fill "#F59E0B" -font DejaVu-Sans-Bold -gravity center -pointsize 100 -annotate 0 "ANLIK PİYASA" \
             assets/splash.png
-            
+
           cp assets/icon.png assets/adaptive-icon.png
           cp assets/icon.png assets/favicon.png
 
-      # 3) PACKAGE.JSON (SDK 54 uyumlu + AdMob + Local Notifications + AsyncStorage)
+      # 3) PACKAGE.JSON (Expo SDK 54 uyumlu + AdMob)
       - name: 📄 package.json Oluştur
         run: |
           cat > package.json <<'EOF'
@@ -50,24 +51,15 @@ jobs:
             "main": "node_modules/expo/AppEntry.js",
             "private": true,
             "dependencies": {
-              "expo": "^54.0.12",
+              "expo": "54.0.22",
               "react": "19.1.0",
-              "react-native": "0.81.1",
-
-              "expo-status-bar": "~2.1.0",
-              "expo-notifications": "~0.32.16",
-
-              "@react-native-async-storage/async-storage": "2.2.0",
-
-              "@expo/vector-icons": "~14.0.0",
-              "fs-extra": "^11.2.0",
-
+              "react-native": "0.81.5",
+              "expo-status-bar": "~3.0.8",
+              "@expo/vector-icons": "^15.0.2",
               "react-native-safe-area-context": "~5.6.0",
-              "react-native-screens": "~4.16.0",
               "react-native-reanimated": "~4.1.1",
-              "react-native-worklets": "0.5.1",
 
-              "react-native-google-mobile-ads": "^16.3.1"
+              "react-native-google-mobile-ads": "^16.0.3"
             },
             "devDependencies": {
               "@babel/core": "^7.25.0",
@@ -80,21 +72,22 @@ jobs:
       - name: ⚙️ Config Dosyaları
         run: |
           cat > babel.config.js <<'EOF'
-          module.exports = function(api) { 
-            api.cache(true); 
-            return { 
+          module.exports = function(api) {
+            api.cache(true);
+            return {
               presets: ['babel-preset-expo'],
               plugins: ['react-native-reanimated/plugin']
-            }; 
+            };
           };
           EOF
+
           cat > metro.config.js <<'EOF'
           const { getDefaultConfig } = require('expo/metro-config');
           const config = getDefaultConfig(__dirname);
           module.exports = config;
           EOF
 
-      # 5) APP.JS (Döviz + Altın + Favoriler + Alarmlar + Local Notif (APP OPEN) + AdMob)
+      # 5) APP.JS (Döviz + Altın + Hesaplayıcı + Banner + 5 tıklamada 1 Geçiş)
       - name: 📱 App.js Oluştur
         run: |
           cat > App.js <<'EOF'
@@ -106,202 +99,82 @@ jobs:
           } from 'react-native';
           import { Ionicons } from '@expo/vector-icons';
           import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-          import AsyncStorage from '@react-native-async-storage/async-storage';
-          import * as Notifications from 'expo-notifications';
 
-          import {
+          // AdMob
+          import mobileAds, {
             BannerAd,
             BannerAdSize,
             InterstitialAd,
-            AdEventType,
+            AdEventType
           } from 'react-native-google-mobile-ads';
 
-          // ===================== AYARLAR =====================
+          // --- AYARLAR ---
           const URL = "https://creatorapp24.com/pre.php";
           const SCREEN_WIDTH = Dimensions.get('window').width;
           const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
 
-          // ADMOB IDs (Senin verdiğin)
-          const ADMOB_APP_ID = "ca-app-pub-2289573527937577~7422350827";
-          const ADMOB_BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
-          const ADMOB_INTERSTITIAL_ID = "ca-app-pub-2289573527937577/6951577531";
+          // ✅ Sende verilen AdMob ID’leri
+          const ADMOB_APP_ID_ANDROID = "ca-app-pub-2289573527937577~7422350827";
+          // iOS App ID’yi AdMob’dan alıp buraya yazman en doğrusu.
+          // Şimdilik aynı değer bırakıyorum; iOS için farklı App ID kullanmalısın.
+          const ADMOB_APP_ID_IOS = "ca-app-pub-2289573527937577~7422350827";
 
-          // Storage keys
-          const K_FAVORITES = "AP_FAVORITES_V1";
-          const K_ALARMS = "AP_ALARMS_V1";
-          const K_PRO = "AP_PRO_V1";
-          const K_LANG = "AP_LANG_V1";
-          const K_THEME = "AP_THEME_V1";
-
-          // Foreground’da bildirimi gösterebilmek için handler
-          Notifications.setNotificationHandler({
-            handleNotification: async () => ({
-              shouldShowAlert: true,
-              shouldPlaySound: false,
-              shouldSetBadge: false,
-            }),
-          });
+          const BANNER_ID = "ca-app-pub-2289573527937577/9217874142";
+          const INTERSTITIAL_ID = "ca-app-pub-2289573527937577/6951577531";
 
           const LANG = {
             tr: {
-              tab_currency: "DÖVİZ",
-              tab_gold: "ALTIN",
-              tab_fav: "FAVORİ",
-              buy: "Alış",
-              sell: "Satış",
-              calcTitle: "Hesaplayıcı",
-              amount: "Miktar Giriniz",
-              result: "SONUÇ",
-              settings: "Ayarlar",
-              theme: "Tema",
-              language: "Dil",
-              auto: "Otomatik",
-              dark: "Karanlık",
-              light: "Aydınlık",
+              tab_currency: "DÖVİZ", tab_gold: "ALTIN", buy: "Alış", sell: "Satış",
+              calcTitle: "Hesaplayıcı", amount: "Miktar Giriniz", result: "SONUÇ",
+              settings: "Ayarlar", theme: "Tema", language: "Dil", auto: "Otomatik",
+              dark: "Karanlık", light: "Aydınlık",
               adSpace: "REKLAM ALANI",
-              bannerPlace: "REKLAM YERİ",
-              favorites: "Favoriler",
-              alarms: "Alarmlar",
-              addAlarm: "Alarm Ekle",
-              alarmPrice: "Hedef Fiyat (Satış)",
-              alarmNote: "Not (opsiyonel)",
-              save: "Kaydet",
-              cancel: "İptal",
-              proMode: "Pro Mode (Reklamsız)",
-              notifPerm: "Bildirim İzni",
-              notifPermInfo: "Uygulama açıkken alarm/favori kontrolü için izin istenir.",
-              noFav: "Favori yok.",
-              noAlarms: "Alarm yok."
+              bannerPlace: "BANNER",
+              noData: "Veri Yok / Yükleniyor..."
             },
             en: {
-              tab_currency: "CURRENCY",
-              tab_gold: "GOLD",
-              tab_fav: "FAVORITES",
-              buy: "Buy",
-              sell: "Sell",
-              calcTitle: "Calculator",
-              amount: "Enter Amount",
-              result: "RESULT",
-              settings: "Settings",
-              theme: "Theme",
-              language: "Language",
-              auto: "Auto",
-              dark: "Dark",
-              light: "Light",
+              tab_currency: "CURRENCY", tab_gold: "GOLD", buy: "Buy", sell: "Sell",
+              calcTitle: "Calculator", amount: "Enter Amount", result: "RESULT",
+              settings: "Settings", theme: "Theme", language: "Language", auto: "Auto",
+              dark: "Dark", light: "Light",
               adSpace: "AD SPACE",
-              bannerPlace: "AD PLACE",
-              favorites: "Favorites",
-              alarms: "Alarms",
-              addAlarm: "Add Alarm",
-              alarmPrice: "Target Price (Sell)",
-              alarmNote: "Note (optional)",
-              save: "Save",
-              cancel: "Cancel",
-              proMode: "Pro Mode (No Ads)",
-              notifPerm: "Notification Permission",
-              notifPermInfo: "Permission is requested for in-app checks while the app is open.",
-              noFav: "No favorites yet.",
-              noAlarms: "No alarms yet."
+              bannerPlace: "BANNER",
+              noData: "No data / loading..."
             }
           };
 
-          // ===================== HELPERS =====================
-          const cleanPrice = (priceStr) => {
-            if (!priceStr) return 0;
-            // "$4.887,42" -> 4887.42
-            const clean = priceStr.toString()
-              .replace('$', '')
-              .replace(/\./g, '')
-              .replace(',', '.')
-              .trim();
-            const v = parseFloat(clean);
-            return isNaN(v) ? 0 : v;
-          };
-
-          const getStatusData = (yon, theme) => {
-            if (yon && yon.includes('yuksel')) return { color: theme.green, icon: 'caret-up' };
-            if (yon && yon.includes('dusus')) return { color: theme.red, icon: 'caret-down' };
-            return { color: theme.subText, icon: 'remove-outline' };
-          };
-
-          const Sparkline = ({ values, theme }) => {
-            // values: number[]
-            if (!values || values.length < 2) return null;
-            const min = Math.min(...values);
-            const max = Math.max(...values);
-            const range = Math.max(1e-9, max - min);
-
-            const bars = values.slice(-18); // son 18 değer
-            return (
-              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, marginTop: 6 }}>
-                {bars.map((v, i) => {
-                  const h = 6 + Math.round(((v - min) / range) * 16); // 6..22
-                  return (
-                    <View
-                      key={String(i)}
-                      style={{
-                        width: 3,
-                        height: h,
-                        borderRadius: 2,
-                        backgroundColor: theme.gold,
-                        opacity: 0.7,
-                      }}
-                    />
-                  );
-                })}
-              </View>
-            );
-          };
-
-          // ===================== MAIN APP =====================
           function MainApp() {
             const insets = useSafeAreaInsets();
             const colorScheme = Appearance.getColorScheme();
 
-            // Data
             const [currencies, setCurrencies] = useState([]);
             const [golds, setGolds] = useState([]);
             const [loading, setLoading] = useState(true);
             const [refreshing, setRefreshing] = useState(false);
-            const [activeTab, setActiveTab] = useState('currency'); // currency | gold | fav
+            const [activeTab, setActiveTab] = useState('currency');
 
-            // UI settings
-            const [themeMode, setThemeMode] = useState('auto'); // auto | light | dark
+            const [themeMode, setThemeMode] = useState('auto');
             const [language, setLanguage] = useState('tr');
             const [menuOpen, setMenuOpen] = useState(false);
-            const [proMode, setProMode] = useState(false);
 
-            // Favorites + Alarms
-            const [favorites, setFavorites] = useState([]); // codes
-            const [alarms, setAlarms] = useState([]); // {id, code, target, note, type, firedAt?}
-            const [alarmModal, setAlarmModal] = useState(false);
-            const [alarmCode, setAlarmCode] = useState('');
-            const [alarmTarget, setAlarmTarget] = useState('');
-            const [alarmNote, setAlarmNote] = useState('');
+            const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+            const fadeAnim = useRef(new Animated.Value(0)).current;
 
-            // Calculator modal
             const [calcVisible, setCalcVisible] = useState(false);
             const [selectedItem, setSelectedItem] = useState(null);
             const [amount, setAmount] = useState('');
             const [calcResult, setCalcResult] = useState(null);
 
-            // Drawer animation
-            const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
-            const fadeAnim = useRef(new Animated.Value(0)).current;
-
-            // Price history for sparkline
-            const historyRef = useRef({}); // { [code]: number[] }
-
-            // Ad state
+            // --- Interstitial kontrol ---
             const clickCountRef = useRef(0);
             const interstitialRef = useRef(null);
-            const [interReady, setInterReady] = useState(false);
+            const interstitialLoadedRef = useRef(false);
 
             const isDarkMode = themeMode === 'auto' ? colorScheme === 'dark' : themeMode === 'dark';
             const T = LANG[language];
 
-            const theme = useMemo(() => {
-              return isDarkMode ? {
+            const theme = useMemo(() => (
+              isDarkMode ? {
                 bg: '#000000', surface: '#1C1C1E', card: '#1C1C1E',
                 text: '#FFFFFF', subText: '#8E8E93', gold: '#FFD60A', green: '#30D158', red: '#FF453A',
                 border: '#38383A', modal: '#2C2C2E', input: '#2C2C2E', tint: 'rgba(255,255,255,0.1)', tabActive: '#3A3A3C'
@@ -309,52 +182,9 @@ jobs:
                 bg: '#F2F2F7', surface: '#FFFFFF', card: '#FFFFFF',
                 text: '#000000', subText: '#8E8E93', gold: '#FF9500', green: '#34C759', red: '#FF3B30',
                 border: '#E5E5EA', modal: '#FFFFFF', input: '#F2F2F7', tint: 'rgba(0,0,0,0.05)', tabActive: '#E5E5EA'
-              };
-            }, [isDarkMode]);
+              }
+            ), [isDarkMode]);
 
-            // --------------- Storage boot ---------------
-            useEffect(() => {
-              (async () => {
-                try {
-                  const [favRaw, alarmRaw, proRaw, langRaw, themeRaw] = await Promise.all([
-                    AsyncStorage.getItem(K_FAVORITES),
-                    AsyncStorage.getItem(K_ALARMS),
-                    AsyncStorage.getItem(K_PRO),
-                    AsyncStorage.getItem(K_LANG),
-                    AsyncStorage.getItem(K_THEME),
-                  ]);
-
-                  if (favRaw) setFavorites(JSON.parse(favRaw));
-                  if (alarmRaw) setAlarms(JSON.parse(alarmRaw));
-                  if (proRaw) setProMode(proRaw === '1');
-                  if (langRaw) setLanguage(langRaw);
-                  if (themeRaw) setThemeMode(themeRaw);
-                } catch (e) {}
-              })();
-            }, []);
-
-            const saveFavorites = async (arr) => {
-              setFavorites(arr);
-              try { await AsyncStorage.setItem(K_FAVORITES, JSON.stringify(arr)); } catch (e) {}
-            };
-            const saveAlarms = async (arr) => {
-              setAlarms(arr);
-              try { await AsyncStorage.setItem(K_ALARMS, JSON.stringify(arr)); } catch (e) {}
-            };
-            const savePro = async (v) => {
-              setProMode(v);
-              try { await AsyncStorage.setItem(K_PRO, v ? '1' : '0'); } catch (e) {}
-            };
-            const saveLang = async (v) => {
-              setLanguage(v);
-              try { await AsyncStorage.setItem(K_LANG, v); } catch (e) {}
-            };
-            const saveTheme = async (v) => {
-              setThemeMode(v);
-              try { await AsyncStorage.setItem(K_THEME, v); } catch (e) {}
-            };
-
-            // --------------- Drawer anim ---------------
             useEffect(() => {
               Animated.parallel([
                 Animated.timing(slideAnim, { toValue: menuOpen ? 0 : -DRAWER_WIDTH, duration: 300, useNativeDriver: true }),
@@ -362,122 +192,61 @@ jobs:
               ]).start();
             }, [menuOpen]);
 
-            // --------------- Notifications permission (NO PUSH SERVER) ---------------
+            // --- AdMob init + interstitial setup ---
             useEffect(() => {
-              (async () => {
-                try {
-                  const settings = await Notifications.getPermissionsAsync();
-                  if (settings.status !== 'granted') {
-                    await Notifications.requestPermissionsAsync();
-                  }
-                } catch (e) {}
-              })();
-            }, []);
+              // Push server yok. Sadece AdMob init.
+              mobileAds().initialize().catch(() => {});
 
-            // --------------- AdMob: Interstitial setup ---------------
-            useEffect(() => {
-              // ProMode açıksa reklam yok
-              if (proMode) return;
-
-              const inter = InterstitialAd.createForAdRequest(ADMOB_INTERSTITIAL_ID, {
-                requestNonPersonalizedAdsOnly: true,
-              });
-              interstitialRef.current = inter;
-
-              const unsubLoaded = inter.addAdEventListener(AdEventType.LOADED, () => setInterReady(true));
-              const unsubClosed = inter.addAdEventListener(AdEventType.CLOSED, () => {
-                setInterReady(false);
-                inter.load(); // tekrar hazırla
-              });
-              const unsubError = inter.addAdEventListener(AdEventType.ERROR, () => {
-                setInterReady(false);
+              const interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_ID, {
+                requestNonPersonalizedAdsOnly: true
               });
 
-              inter.load();
+              interstitialRef.current = interstitial;
+
+              const unsub = interstitial.onAdEvent((type) => {
+                if (type === AdEventType.LOADED) interstitialLoadedRef.current = true;
+                if (type === AdEventType.CLOSED) {
+                  interstitialLoadedRef.current = false;
+                  interstitial.load();
+                }
+                if (type === AdEventType.ERROR) {
+                  interstitialLoadedRef.current = false;
+                }
+              });
+
+              interstitial.load();
 
               return () => {
-                unsubLoaded();
-                unsubClosed();
-                unsubError();
+                unsub();
               };
-            }, [proMode]);
+            }, []);
 
             const maybeShowInterstitial = () => {
-              if (proMode) return;
               clickCountRef.current += 1;
-              if (clickCountRef.current >= 5) {
-                clickCountRef.current = 0;
-                const inter = interstitialRef.current;
-                if (inter && interReady) {
-                  try { inter.show(); } catch (e) {}
+
+              // ✅ 5 geçişte bir göster
+              if (clickCountRef.current % 5 === 0) {
+                const ad = interstitialRef.current;
+                if (ad && interstitialLoadedRef.current) {
+                  try { ad.show(); } catch (e) {}
                 }
               }
             };
 
-            // --------------- Data load ---------------
+            // --- Veri Çekme ---
             const loadData = async (isAuto = false) => {
               if (!isAuto) setLoading(true);
               try {
                 const resp = await fetch(URL, { headers: { 'Cache-Control': 'no-cache' } });
                 const json = await resp.json();
 
-                let doviz = [];
-                let altin = [];
-
+                // Yapı: { "veriler": { "doviz": [...], "altin": [...] } }
                 if (json && json.veriler) {
-                  if (Array.isArray(json.veriler.doviz)) doviz = json.veriler.doviz;
-                  if (Array.isArray(json.veriler.altin)) altin = json.veriler.altin;
-                }
-
-                setCurrencies(doviz);
-                setGolds(altin);
-
-                // sparkline history update
-                const merged = [...doviz, ...altin];
-                merged.forEach((it) => {
-                  const code = it?.kod || '';
-                  if (!code) return;
-                  const price = cleanPrice(it?.satis);
-                  if (!historyRef.current[code]) historyRef.current[code] = [];
-                  historyRef.current[code].push(price);
-                  if (historyRef.current[code].length > 60) historyRef.current[code].shift();
-                });
-
-                // alarms check ONLY if app open (we are in app)
-                if (alarms.length > 0) {
-                  const map = {};
-                  merged.forEach((it) => { if (it?.kod) map[it.kod] = cleanPrice(it.satis); });
-
-                  const now = Date.now();
-                  const updated = alarms.map((a) => {
-                    const current = map[a.code];
-                    if (!current) return a;
-
-                    const already = a.firedAt && (now - a.firedAt) < (6 * 60 * 60 * 1000); // 6 saat içinde tekrar etmesin
-                    if (already) return a;
-
-                    const target = parseFloat(String(a.target).replace(',', '.'));
-                    if (isNaN(target)) return a;
-
-                    if (current >= target) {
-                      Notifications.scheduleNotificationAsync({
-                        content: {
-                          title: `ALARM: ${a.code}`,
-                          body: `${a.code} satış ${current.toFixed(2)} ₺ (hedef: ${target})${a.note ? " • " + a.note : ""}`
-                        },
-                        trigger: null
-                      });
-                      return { ...a, firedAt: now };
-                    }
-                    return a;
-                  });
-
-                  // firedAt güncellendiyse kaydet
-                  const changed = JSON.stringify(updated) !== JSON.stringify(alarms);
-                  if (changed) saveAlarms(updated);
+                  if (Array.isArray(json.veriler.doviz)) setCurrencies(json.veriler.doviz);
+                  if (Array.isArray(json.veriler.altin)) setGolds(json.veriler.altin);
                 }
               } catch (e) {
-                console.error(e);
+                // sessiz
               } finally {
                 setLoading(false);
                 setRefreshing(false);
@@ -485,29 +254,23 @@ jobs:
             };
 
             useEffect(() => {
-              loadData(false);
+              loadData();
               const i = setInterval(() => loadData(true), 15000);
               return () => clearInterval(i);
-              // eslint-disable-next-line react-hooks/exhaustive-deps
-            }, [alarms.length]);
+            }, []);
 
-            const onRefresh = () => {
-              setRefreshing(true);
-              loadData(true);
+            const onRefresh = () => { setRefreshing(true); loadData(true); };
+
+            // --- Fiyat temizleme ---
+            const cleanPrice = (priceStr) => {
+              if (!priceStr) return 0;
+              let clean = priceStr.toString().replace('$', '').replace(/\./g, '').replace(',', '.').trim();
+              const v = parseFloat(clean);
+              return isNaN(v) ? 0 : v;
             };
 
-            // --------------- Favorites helpers ---------------
-            const toggleFavorite = (code) => {
-              if (!code) return;
-              if (favorites.includes(code)) {
-                saveFavorites(favorites.filter((x) => x !== code));
-              } else {
-                saveFavorites([code, ...favorites]);
-              }
-            };
-
-            // --------------- Calculator ---------------
             const openCalculator = (item) => {
+              maybeShowInterstitial(); // ✅ tıklama sayacı
               setSelectedItem(item);
               setAmount('');
               setCalcResult(null);
@@ -523,106 +286,52 @@ jobs:
               }
             };
 
-            // --------------- Alarm add ---------------
-            const openAlarmAdd = (code) => {
-              setAlarmCode(code || '');
-              setAlarmTarget('');
-              setAlarmNote('');
-              setAlarmModal(true);
+            const getStatusData = (yon) => {
+              if (yon && yon.includes('yuksel')) return { color: theme.green, icon: 'caret-up' };
+              if (yon && yon.includes('dusus')) return { color: theme.red, icon: 'caret-down' };
+              return { color: theme.subText, icon: 'remove-outline' };
             };
 
-            const saveAlarmNow = () => {
-              const code = (alarmCode || '').trim();
-              const target = parseFloat(String(alarmTarget).replace(',', '.'));
-              if (!code || isNaN(target)) {
-                setAlarmModal(false);
-                return;
-              }
-              const newA = {
-                id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
-                code,
-                target: target,
-                note: (alarmNote || '').trim(),
-                firedAt: 0
-              };
-              saveAlarms([newA, ...alarms]);
-              setAlarmModal(false);
-            };
-
-            const removeAlarm = (id) => {
-              saveAlarms(alarms.filter((a) => a.id !== id));
-            };
-
-            // --------------- Data selection for tabs ---------------
-            const allItems = activeTab === 'currency' ? currencies : activeTab === 'gold' ? golds : [...currencies, ...golds];
-            const listData = activeTab !== 'fav'
-              ? allItems
-              : allItems.filter((it) => favorites.includes(it?.kod));
-
-            // --------------- Item render ---------------
             const renderItem = ({ item }) => {
-              const status = getStatusData(item.yon, theme);
+              const status = getStatusData(item.yon);
               const displayName = (item.isim && item.isim.trim() !== "") ? item.isim : item.kod;
-              const code = item?.kod || '';
-              const isFav = favorites.includes(code);
-              const hist = historyRef.current[code] || [];
 
               return (
-                <View style={{ marginHorizontal: 16 }}>
-                  <TouchableOpacity
-                    onPress={() => { maybeShowInterstitial(); openCalculator(item); }}
-                    activeOpacity={0.85}
-                  >
-                    <View style={[styles.card, { backgroundColor: theme.card }]}>
-                      <View style={{flexDirection:'row', alignItems:'center', flex:1}}>
-                        <View style={[styles.iconBox, { backgroundColor: theme.tint }]}>
-                          <Text style={{fontSize:16, fontWeight:'800', color: theme.gold}}>
-                            {code ? code.substring(0,1) : '$'}
-                          </Text>
-                        </View>
-                        <View style={{marginLeft: 12, flex:1}}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Text style={{color: theme.text, fontWeight:'800', fontSize:16}} numberOfLines={1}>{code}</Text>
-
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                              <TouchableOpacity onPress={() => toggleFavorite(code)} style={{ padding: 6 }}>
-                                <Ionicons name={isFav ? "star" : "star-outline"} size={20} color={isFav ? theme.gold : theme.subText} />
-                              </TouchableOpacity>
-
-                              <TouchableOpacity onPress={() => openAlarmAdd(code)} style={{ padding: 6 }}>
-                                <Ionicons name="alarm-outline" size={20} color={theme.subText} />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-
-                          <Text style={{color: theme.subText, fontSize:11, marginTop:2}} numberOfLines={1}>
-                            {displayName}
-                          </Text>
-
-                          <Sparkline values={hist} theme={theme} />
-                        </View>
+                <TouchableOpacity onPress={() => openCalculator(item)} activeOpacity={0.8}>
+                  <View style={[styles.card, { backgroundColor: theme.card }]}>
+                    <View style={{flexDirection:'row', alignItems:'center', flex:1}}>
+                      <View style={[styles.iconBox, { backgroundColor: theme.tint }]}>
+                        <Text style={{fontSize:16, fontWeight:'800', color: theme.gold}}>
+                          {item.kod ? item.kod.substring(0,1) : '$'}
+                        </Text>
                       </View>
-
-                      <View style={{alignItems:'flex-end', marginLeft: 10}}>
-                        <View style={{flexDirection:'row', alignItems:'center'}}>
-                          <Text style={{color: theme.text, fontSize:17, fontWeight:'900', marginRight:4, fontVariant: ['tabular-nums']}}>
-                            {item.satis}
-                          </Text>
-                          <Ionicons name={status.icon} size={16} color={status.color} />
-                        </View>
-
-                        <View style={{flexDirection:'row', marginTop:4, alignItems:'center'}}>
-                          <Text style={{color: status.color, fontSize:11, fontWeight:'700', marginRight: 8}}>
-                            {item.degisim}
-                          </Text>
-                          <Text style={{color: theme.subText, fontSize:11}}>
-                            {T.buy}: {item.alis}
-                          </Text>
-                        </View>
+                      <View style={{marginLeft: 12, flex:1}}>
+                        <Text style={{color: theme.text, fontWeight:'700', fontSize:16}} numberOfLines={1}>{item.kod}</Text>
+                        <Text style={{color: theme.subText, fontSize:11, marginTop:2}} numberOfLines={1}>
+                          {displayName}
+                        </Text>
                       </View>
                     </View>
-                  </TouchableOpacity>
-                </View>
+
+                    <View style={{alignItems:'flex-end'}}>
+                      <View style={{flexDirection:'row', alignItems:'center'}}>
+                        <Text style={{color: theme.text, fontSize:17, fontWeight:'800', marginRight:4, fontVariant: ['tabular-nums']}}>
+                          {item.satis}
+                        </Text>
+                        <Ionicons name={status.icon} size={16} color={status.color} />
+                      </View>
+
+                      <View style={{flexDirection:'row', marginTop:4, alignItems:'center'}}>
+                        <Text style={{color: status.color, fontSize:11, fontWeight:'600', marginRight: 8}}>
+                          {item.degisim}
+                        </Text>
+                        <Text style={{color: theme.subText, fontSize:11}}>
+                          {T.buy}: {item.alis}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
               );
             };
 
@@ -630,7 +339,6 @@ jobs:
               <View style={[styles.container, { backgroundColor: theme.bg }]}>
                 <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
 
-                {/* HEADER */}
                 <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
                   <TouchableOpacity onPress={() => setMenuOpen(true)} style={styles.headerBtn}>
                     <Ionicons name="menu" size={28} color={theme.gold} />
@@ -639,205 +347,93 @@ jobs:
                   <View style={styles.headerBtn} />
                 </View>
 
-                {/* TABS */}
                 <View style={[styles.tabContainer, { backgroundColor: theme.surface }]}>
-                  <TouchableOpacity onPress={() => setActiveTab('currency')} style={[styles.tabBtn, activeTab === 'currency' && { backgroundColor: theme.tabActive }]}>
+                  <TouchableOpacity onPress={() => { maybeShowInterstitial(); setActiveTab('currency'); }} style={[styles.tabBtn, activeTab === 'currency' && { backgroundColor: theme.tabActive }]}>
                     <Text style={[styles.tabText, { color: activeTab === 'currency' ? theme.gold : theme.subText }]}>{T.tab_currency}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setActiveTab('gold')} style={[styles.tabBtn, activeTab === 'gold' && { backgroundColor: theme.tabActive }]}>
+                  <TouchableOpacity onPress={() => { maybeShowInterstitial(); setActiveTab('gold'); }} style={[styles.tabBtn, activeTab === 'gold' && { backgroundColor: theme.tabActive }]}>
                     <Text style={[styles.tabText, { color: activeTab === 'gold' ? theme.gold : theme.subText }]}>{T.tab_gold}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setActiveTab('fav')} style={[styles.tabBtn, activeTab === 'fav' && { backgroundColor: theme.tabActive }]}>
-                    <Text style={[styles.tabText, { color: activeTab === 'fav' ? theme.gold : theme.subText }]}>{T.tab_fav}</Text>
                   </TouchableOpacity>
                 </View>
 
-                {/* LIST */}
                 {loading ? (
                   <ActivityIndicator size="large" color={theme.gold} style={{marginTop:50}} />
                 ) : (
                   <FlatList
-                    data={listData}
-                    keyExtractor={(item, index) => (item?.kod || 'X') + index}
+                    data={activeTab === 'currency' ? currencies : golds}
+                    keyExtractor={(item, index) => (item.kod || 'X') + index}
                     renderItem={renderItem}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
-                    contentContainerStyle={{paddingTop: 15, paddingBottom: (proMode ? 40 : 140)}}
+                    contentContainerStyle={{paddingTop: 15, paddingBottom: 140}}
                     ItemSeparatorComponent={() => <View style={{height: 10}} />}
-                    ListEmptyComponent={
-                      <Text style={{color:theme.subText, textAlign:'center', marginTop:20}}>
-                        {activeTab === 'fav' ? T.noFav : "Veri Yükleniyor..."}
-                      </Text>
-                    }
+                    ListEmptyComponent={<Text style={{color:theme.subText, textAlign:'center', marginTop:20}}>{T.noData}</Text>}
                   />
                 )}
 
-                {/* BANNER (Pro Mode kapalıysa) */}
-                {!proMode && (
-                  <View style={[styles.bannerContainer, { paddingBottom: insets.bottom + 8, backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-                    <Text style={{color: theme.subText, fontSize:9, marginBottom:6, letterSpacing:1}}>{T.adSpace}</Text>
-                    <View style={{ alignItems:'center' }}>
-                      <BannerAd
-                        unitId={ADMOB_BANNER_ID}
-                        size={BannerAdSize.BANNER}
-                        requestOptions={{ requestNonPersonalizedAdsOnly: true }}
-                      />
-                    </View>
+                {/* ✅ Banner */}
+                <View style={[styles.bannerContainer, { paddingBottom: insets.bottom + 10, backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+                  <Text style={{color: theme.subText, fontSize:9, marginBottom:6, letterSpacing:1}}>{T.adSpace}</Text>
+                  <View style={{ alignItems:'center' }}>
+                    <BannerAd
+                      unitId={BANNER_ID}
+                      size={BannerAdSize.BANNER}
+                      requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+                    />
                   </View>
-                )}
+                </View>
 
-                {/* Drawer overlay */}
                 {menuOpen && (
                   <Animated.View style={[styles.menuOverlay, { opacity: fadeAnim }]}>
                     <TouchableOpacity style={{flex:1}} onPress={() => setMenuOpen(false)} activeOpacity={1} />
                   </Animated.View>
                 )}
 
-                {/* Drawer */}
                 <Animated.View style={[styles.drawer, { width: DRAWER_WIDTH, backgroundColor: theme.surface, transform: [{ translateX: slideAnim }], paddingTop: insets.top + 20 }]}>
-                  <View style={{paddingHorizontal: 20, marginBottom: 16}}>
-                    <Text style={{fontSize: 28, fontWeight: '900', color: theme.text}}>{T.settings}</Text>
-                    <Text style={{fontSize: 13, color: theme.subText, marginTop: 4}}>v1.0.0 • API Fix • Ads • Favorites • Alarms</Text>
+                  <View style={{paddingHorizontal: 20, marginBottom: 30}}>
+                    <Text style={{fontSize: 28, fontWeight: '800', color: theme.text}}>{T.settings}</Text>
+                    <Text style={{fontSize: 14, color: theme.subText, marginTop: 5}}>v1.0.0</Text>
                   </View>
 
                   <ScrollView style={{flex:1}}>
-                    {/* PRO MODE */}
-                    <View style={styles.menuSection}>
-                      <Text style={[styles.menuHeader, {color: theme.subText}]}>{T.proMode.toUpperCase()}</Text>
-                      <TouchableOpacity
-                        onPress={() => savePro(!proMode)}
-                        style={[styles.menuItem, {borderBottomColor: theme.border}]}
-                      >
-                        <Text style={{color: theme.text, fontSize:16}}>{T.proMode}</Text>
-                        <Ionicons name={proMode ? "checkmark-circle" : "ellipse-outline"} size={22} color={proMode ? theme.gold : theme.subText} />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* THEME */}
                     <View style={styles.menuSection}>
                       <Text style={[styles.menuHeader, {color: theme.subText}]}>{T.theme.toUpperCase()}</Text>
                       {['auto', 'light', 'dark'].map((m) => (
-                        <TouchableOpacity key={m} onPress={() => saveTheme(m)} style={[styles.menuItem, {borderBottomColor: theme.border}]}>
+                        <TouchableOpacity key={m} onPress={() => setThemeMode(m)} style={[styles.menuItem, {borderBottomColor: theme.border}]}>
                           <Text style={{color: theme.text, fontSize:16, textTransform:'capitalize'}}>{T[m]}</Text>
                           {themeMode === m && <Ionicons name="checkmark" size={22} color={theme.gold} />}
                         </TouchableOpacity>
                       ))}
                     </View>
 
-                    {/* LANGUAGE */}
                     <View style={styles.menuSection}>
                       <Text style={[styles.menuHeader, {color: theme.subText}]}>{T.language.toUpperCase()}</Text>
                       {['tr', 'en'].map((l) => (
-                        <TouchableOpacity key={l} onPress={() => saveLang(l)} style={[styles.menuItem, {borderBottomColor: theme.border}]}>
+                        <TouchableOpacity key={l} onPress={() => setLanguage(l)} style={[styles.menuItem, {borderBottomColor: theme.border}]}>
                           <Text style={{color: theme.text, fontSize:16}}>{l === 'tr' ? 'Türkçe' : 'English'}</Text>
                           {language === l && <Ionicons name="checkmark" size={22} color={theme.gold} />}
                         </TouchableOpacity>
                       ))}
                     </View>
-
-                    {/* ALARMS LIST */}
-                    <View style={styles.menuSection}>
-                      <Text style={[styles.menuHeader, {color: theme.subText}]}>{T.alarms.toUpperCase()}</Text>
-
-                      <TouchableOpacity onPress={() => { setAlarmCode(''); setAlarmTarget(''); setAlarmNote(''); setAlarmModal(true); }} style={[styles.menuItem, {borderBottomColor: theme.border}]}>
-                        <Text style={{color: theme.text, fontSize:16}}>{T.addAlarm}</Text>
-                        <Ionicons name="add" size={22} color={theme.gold} />
-                      </TouchableOpacity>
-
-                      {alarms.length === 0 ? (
-                        <Text style={{ color: theme.subText, paddingVertical: 10 }}>{T.noAlarms}</Text>
-                      ) : alarms.slice(0, 10).map((a) => (
-                        <View key={a.id} style={{ paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: theme.border }}>
-                          <Text style={{ color: theme.text, fontWeight: '800' }}>{a.code} ≥ {a.target}</Text>
-                          {!!a.note && <Text style={{ color: theme.subText, marginTop: 2 }}>{a.note}</Text>}
-                          <TouchableOpacity onPress={() => removeAlarm(a.id)} style={{ marginTop: 6, alignSelf:'flex-start', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, backgroundColor: theme.tint }}>
-                            <Text style={{ color: theme.text, fontWeight:'700' }}>Sil</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </View>
-
-                    {/* NOTIF INFO */}
-                    <View style={styles.menuSection}>
-                      <Text style={[styles.menuHeader, {color: theme.subText}]}>{T.notifPerm.toUpperCase()}</Text>
-                      <Text style={{ color: theme.subText, lineHeight: 18 }}>{T.notifPermInfo}</Text>
-                    </View>
-
-                    <View style={{ height: 40 }} />
                   </ScrollView>
                 </Animated.View>
 
-                {/* Alarm Modal */}
-                <Modal visible={alarmModal} transparent animationType="slide" onRequestClose={() => setAlarmModal(false)}>
-                  <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
-                    <TouchableOpacity style={{flex:1, justifyContent:'flex-end'}} activeOpacity={1} onPress={() => setAlarmModal(false)}>
-                      <TouchableOpacity activeOpacity={1} style={[styles.calcContent, { backgroundColor: theme.modal, paddingBottom: insets.bottom + 20 }]}>
-                        <View style={styles.dragHandle} />
-                        <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
-                          <Text style={{color:theme.text, fontSize:20, fontWeight:'800'}}>{T.addAlarm}</Text>
-                          <TouchableOpacity onPress={() => setAlarmModal(false)} style={{padding:6, backgroundColor: theme.tint, borderRadius:20}}>
-                            <Ionicons name="close" size={20} color={theme.subText} />
-                          </TouchableOpacity>
-                        </View>
-
-                        <Text style={{ color: theme.subText, marginBottom: 6 }}>Kod</Text>
-                        <TextInput
-                          style={[styles.input, { backgroundColor: theme.input, color: theme.text, fontSize: 16, height: 52 }]}
-                          placeholder="USD / EUR / Çeyrek Altın..."
-                          placeholderTextColor={theme.subText}
-                          value={alarmCode}
-                          onChangeText={setAlarmCode}
-                        />
-
-                        <Text style={{ color: theme.subText, marginTop: 12, marginBottom: 6 }}>{T.alarmPrice}</Text>
-                        <TextInput
-                          style={[styles.input, { backgroundColor: theme.input, color: theme.text, height: 56 }]}
-                          placeholder="0"
-                          placeholderTextColor={theme.subText}
-                          keyboardType="numeric"
-                          value={alarmTarget}
-                          onChangeText={setAlarmTarget}
-                        />
-
-                        <Text style={{ color: theme.subText, marginTop: 12, marginBottom: 6 }}>{T.alarmNote}</Text>
-                        <TextInput
-                          style={[styles.input, { backgroundColor: theme.input, color: theme.text, fontSize: 15, height: 52 }]}
-                          placeholder="(opsiyonel)"
-                          placeholderTextColor={theme.subText}
-                          value={alarmNote}
-                          onChangeText={setAlarmNote}
-                        />
-
-                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-                          <TouchableOpacity onPress={() => setAlarmModal(false)} style={{ flex: 1, padding: 14, borderRadius: 14, backgroundColor: theme.tint, alignItems: 'center' }}>
-                            <Text style={{ color: theme.text, fontWeight: '800' }}>{T.cancel}</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={saveAlarmNow} style={{ flex: 1, padding: 14, borderRadius: 14, backgroundColor: theme.gold, alignItems: 'center' }}>
-                            <Text style={{ color: '#000', fontWeight: '900' }}>{T.save}</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  </KeyboardAvoidingView>
-                </Modal>
-
-                {/* Calculator Modal */}
-                <Modal visible={calcVisible} transparent animationType="slide" onRequestClose={() => setCalcVisible(false)}>
+                <Modal visible={calcVisible} transparent={true} animationType="slide" onRequestClose={() => setCalcVisible(false)}>
                   <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
                     <TouchableOpacity style={{flex:1, justifyContent:'flex-end'}} activeOpacity={1} onPress={() => setCalcVisible(false)}>
                       <TouchableOpacity activeOpacity={1} style={[styles.calcContent, { backgroundColor: theme.modal, paddingBottom: insets.bottom + 20 }]}>
                         <View style={styles.dragHandle} />
                         <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
-                          <Text style={{color:theme.text, fontSize:20, fontWeight:'800'}}>{T.calcTitle}</Text>
+                          <Text style={{color:theme.text, fontSize:20, fontWeight:'700'}}>{T.calcTitle}</Text>
                           <TouchableOpacity onPress={() => setCalcVisible(false)} style={{padding:6, backgroundColor: theme.tint, borderRadius:20}}>
                             <Ionicons name="close" size={20} color={theme.subText} />
                           </TouchableOpacity>
                         </View>
 
-                        <View style={{alignItems:'center', marginBottom:18}}>
+                        <View style={{alignItems:'center', marginBottom:20}}>
                           <Text style={{color: theme.subText, fontSize:14}}>
                             {(selectedItem?.isim && selectedItem.isim.trim() !== "") ? selectedItem.isim : selectedItem?.kod}
                           </Text>
-                          <Text style={{color: theme.gold, fontSize:32, fontWeight:'900', marginVertical:6}}>{selectedItem?.satis}</Text>
+                          <Text style={{color: theme.gold, fontSize:32, fontWeight:'800', marginVertical:5}}>{selectedItem?.satis}</Text>
                         </View>
 
                         <TextInput
@@ -847,12 +443,12 @@ jobs:
                           keyboardType="numeric"
                           value={amount}
                           onChangeText={handleCalculate}
-                          autoFocus
+                          autoFocus={true}
                         />
 
                         {calcResult && (
                           <View style={{marginTop:20, padding:16, backgroundColor: theme.green, borderRadius:16, alignItems:'center'}}>
-                            <Text style={{color:'#FFF', fontSize:28, fontWeight:'900'}}>{calcResult} ₺</Text>
+                            <Text style={{color:'#FFF', fontSize:28, fontWeight:'800'}}>{calcResult} ₺</Text>
                           </View>
                         )}
                       </TouchableOpacity>
@@ -873,50 +469,33 @@ jobs:
 
           const styles = StyleSheet.create({
             container: { flex: 1 },
-            header: {
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              paddingHorizontal: 16,
-              paddingBottom: 12,
-              borderBottomWidth: 0.5,
-              zIndex: 1
-            },
+            header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, zIndex: 1 },
             headerBtn: { width: 40, height: 40, justifyContent:'center', alignItems:'center' },
-            title: { fontSize: 20, fontWeight: '900', letterSpacing: 0.5 },
+            title: { fontSize: 20, fontWeight: '800', letterSpacing: 0.5 },
 
             tabContainer: { flexDirection: 'row', padding: 10, gap: 10 },
             tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: 'transparent' },
-            tabText: { fontWeight: '900', fontSize: 13 },
+            tabText: { fontWeight: '700', fontSize: 14 },
 
-            card: {
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              padding: 16,
-              borderRadius: 16,
-              shadowOpacity: 0.05,
-              shadowRadius: 5,
-              shadowOffset: {width:0, height:2},
-              elevation: 2
-            },
+            card: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, marginHorizontal: 16, borderRadius: 16, shadowOpacity: 0.05, shadowRadius: 5, shadowOffset: {width:0, height:2}, elevation: 2 },
             iconBox: { width: 44, height: 44, borderRadius: 22, justifyContent:'center', alignItems:'center' },
 
-            bannerContainer: { alignItems:'center', borderTopWidth:0.5, paddingTop: 10, paddingBottom: 6 },
+            bannerContainer: { alignItems:'center', borderTopWidth:0.5, paddingTop: 10, paddingHorizontal: 10 },
 
             menuOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10 },
             drawer: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 11, shadowColor: "#000", shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 20 },
-            menuSection: { marginTop: 18, paddingHorizontal: 20 },
-            menuHeader: { fontSize: 12, fontWeight: '900', marginBottom: 8, letterSpacing: 1 },
+            menuSection: { marginTop: 20, paddingHorizontal: 20 },
+            menuHeader: { fontSize: 12, fontWeight: '700', marginBottom: 8, letterSpacing: 1 },
             menuItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 0.5 },
 
             modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
             calcContent: { width: '100%', padding: 24, borderTopLeftRadius: 32, borderTopRightRadius: 32 },
             dragHandle: { width: 40, height: 5, backgroundColor: '#CCC', borderRadius: 3, alignSelf: 'center', marginBottom: 20, opacity: 0.5 },
-            input: { height: 56, borderRadius: 16, paddingHorizontal: 20, fontSize: 20, fontWeight:'800' },
+            input: { height: 56, borderRadius: 16, paddingHorizontal: 20, fontSize: 20, fontWeight:'600' }
           });
           EOF
 
-      # 6) APP.JSON (Slug + projectId uyumlu + AdMob config plugin + iOS ATS + ATT metni)
+      # 6) APP.JSON (slug fix + AdMob config plugin + ATS allow http)
       - name: 📄 app.json Oluştur
         run: |
           cat > app.json <<'EOF'
@@ -933,21 +512,12 @@ jobs:
                 "resizeMode": "contain",
                 "backgroundColor": "#000000"
               },
-              "plugins": [
-                [
-                  "react-native-google-mobile-ads",
-                  {
-                    "androidAppId": "ca-app-pub-2289573527937577~7422350827",
-                    "iosAppId": "ca-app-pub-2289573527937577~7422350827"
-                  }
-                ]
-              ],
               "ios": {
                 "bundleIdentifier": "com.piyasapro.app",
                 "supportsTablet": true,
                 "infoPlist": {
                   "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true },
-                  "NSUserTrackingUsageDescription": "Reklam deneyimini iyileştirmek için cihaz tanımlayıcısı kullanılabilir."
+                  "NSUserTrackingUsageDescription": "Reklam deneyimini iyileştirmek için kullanılabilir."
                 }
               },
               "android": {
@@ -957,6 +527,15 @@ jobs:
                   "backgroundColor": "#000000"
                 }
               },
+              "plugins": [
+                [
+                  "react-native-google-mobile-ads",
+                  {
+                    "androidAppId": "ca-app-pub-2289573527937577~7422350827",
+                    "iosAppId": "ca-app-pub-2289573527937577~7422350827"
+                  }
+                ]
+              ],
               "updates": { "url": "https://u.expo.dev/7b7866e2-688e-4e87-af97-88213b2670d4" },
               "runtimeVersion": { "policy": "appVersion" },
               "extra": {
@@ -971,9 +550,8 @@ jobs:
           npm install -g eas-cli
           npm install --legacy-peer-deps
 
-      # 7) OTA UPDATE
       - name: 🚀 Güncelle (Update)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --branch preview --message "FINAL: Favorites + Alarms (APP-OPEN ONLY) + Sparkline + ProMode + AdMob + API Fix" --non-interactive
+          eas update --branch preview --message "FINAL: API Fix + AdMob (banner+interstitial/5)" --non-interactive
